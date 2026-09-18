@@ -12,6 +12,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `TESTDOCUMENTATION.md` — 11 numbered manual tests (health, readiness, snapshot headers/content, camera list, event capture create/retrieve/image, 404 error cases, interactive docs), failure mode tests, and a running results log.
 - `ROADMAP.md` — full 9-step project roadmap with completion status, definitions of done, and future work list.
 
+---
+
+## [0.3.0] — 2026-09-18 · systemd automatic startup confirmed ✅
+
+### Deployment
+- Created `/etc/camera-service/whiteboard.env` with device path, port, resolution, FPS.
+- Installed `camera-capture@.service` and `camera-api.service` to `/etc/systemd/system/`.
+- Both services enabled and running: `systemctl enable --now`.
+- `sudo reboot` performed — `systemctl --failed` returned `0 loaded units listed` post-reboot.
+- Camera snapshot confirmed after reboot without manual intervention.
+
+### Fixed
+- systemd `ExecStart`: removed `${VAR:-default}` bash fallback syntax (not supported by systemd) — use plain `${VAR}` and always set values in the `.env` file.
+- systemd: moved `StartLimitBurst` and `StartLimitIntervalSec` from `[Service]` to `[Unit]` section (correct location per systemd spec).
+
+### Security (observation — not actioned)
+- Lab server is receiving ongoing SSH brute-force attempts from external IPs. All are blocked. Worth reporting to lab admin for `fail2ban` or network-level SSH restriction.
+
 ### Planned
 - systemd units for automatic startup (`camera-capture@whiteboard`, `camera-api`)
 - Second camera (`robot`) connected and configured
