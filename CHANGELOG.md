@@ -10,6 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 - `TESTDOCUMENTATION.md` — 11 numbered manual tests (health, readiness, snapshot headers/content, camera list, event capture create/retrieve/image, 404 error cases, interactive docs), failure mode tests, and a running results log.
+- `ROADMAP.md` — full 9-step project roadmap with completion status, definitions of done, and future work list.
 
 ### Planned
 - systemd units for automatic startup (`camera-capture@whiteboard`, `camera-api`)
