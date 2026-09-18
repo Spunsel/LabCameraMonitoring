@@ -281,12 +281,63 @@ ls /dev/v4l/
 
 ---
 
+## Session 3 — 2026-09-18 · Fix video group permissions
+
+### Add lab user to the video group
+
+```bash
+sudo usermod -aG video lab
+```
+
+**What it does:** Appends the `video` group to the `lab` user's group memberships without touching existing groups (`lab`, `wheel`, `dialout`). Grants read/write access to `/dev/video*` devices.
+**Result:** Command succeeded silently (no output = success). ✓
+
+### Log out to apply the new group
+
+```bash
+exit
+```
+
+**What it does:** Ends the SSH session. Group membership changes only take effect in new login sessions.
+
+### Log back in and verify
+
+```bash
+ssh lab
+groups
+```
+
+**What it does:** Opens a fresh session. `groups` confirms the new membership.
+**Result:** `lab wheel dialout video` — `video` group confirmed. ✓
+
+### Confirm camera access now works
+
+```bash
+v4l2-ctl --list-devices
+```
+
+**What it does:** Lists V4L2 capture devices. Previously returned `Permission denied`.
+**Result:**
+```
+Logitech StreamCam (usb-0000:c3:00.3-2.1.4):
+    /dev/video0
+    /dev/video1
+    /dev/media0
+```
+Camera accessible. ✓ USB path `c3:00.3-2.1.4` records the physical port location.
+
+---
+
+## Session 4 — 2026-09-18 · Deploy code and install dependencies [PLANNED]
+
+---
+
 ## Future sessions (not yet run)
 
 | Session | Purpose |
 |---|---|
-| Session 3 | Connect second camera, update config, test `robot` snapshot |
-| Session 4 | Install systemd units for automatic startup |
-| Session 5 | Configure Nginx TLS reverse proxy + API token |
-| Session 6 | CPEE integration test from demo |
-| Session 7 | Reboot, unplug/replug, concurrency tests |
+| Session 5 | Connect second camera, update config, test `robot` snapshot |
+| Session 6 | Install systemd units for automatic startup |
+| Session 7 | Configure Nginx TLS reverse proxy + API token |
+| Session 8 | CPEE integration test from demo |
+| Session 9 | Reboot, unplug/replug, concurrency tests |
