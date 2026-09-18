@@ -254,4 +254,4 @@ Run them when the hardware or systemd setup is being validated.
 |---|---|---|---|
 | 2026-09-18 | T-01 | ✓ PASS | `{"status":"ok"}` |
 | 2026-09-18 | T-02 | ✓ PASS | `{"ready":true,"cameras":{"whiteboard":true}}` |
-| 2026-09-18 | T-04 | ✓ PASS | 118 kB JPEG, 1280×720, colour |
+| 2026-09-18 | T-04 | ✓ PASS | 118 kB JPEG, 1280×720, colour — lab bench image confirmed correct |
