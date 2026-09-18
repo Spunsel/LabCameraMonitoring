@@ -101,22 +101,27 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Step 6 — Second camera (robot) 🔲
+## Step 6 — Second camera (robot) ✅
 
 **Goal:** Add the robot camera so both cameras are available via the API.
 
-**Prerequisite:** USB-C extension cable (SuperSpeed 5 Gbit/s data, not charging-only) must be physically installed first.
+- [x] Second StreamCam physically connected via USB-C extension cable
+- [x] Both cameras visible: `lsusb` shows two `046d:0893` devices
+- [x] **Different serial numbers confirmed** → `by-id` paths usable for both
+  - `DA702655` → robot (original camera, USB path `2.1.4`)
+  - `51EF0655` → whiteboard (new camera, USB path `2.1.1`)
+- [x] Camera assignments were initially swapped → corrected by swapping serial numbers in config
+- [x] `/etc/camera-service/robot.env` created (`DA702655`, port 8102)
+- [x] `/etc/camera-service/whiteboard.env` updated (`51EF0655`, port 8101)
+- [x] `config/production.yaml` updated with both cameras
+- [x] `sudo systemctl enable --now camera-capture@robot`
+- [x] `sudo systemctl restart camera-capture@whiteboard camera-capture@robot camera-api`
+- [x] `GET /readyz` → `{"ready":true,"cameras":{"whiteboard":true,"robot":true}}` ✓
+- [x] whiteboard snapshot: **157 kB JPEG** ✓
+- [x] robot snapshot: **94 kB JPEG** ✓
+- [x] `camera-api.service` updated to `Wants` both capture units
 
-- [ ] Connect second StreamCam to lab via extension cable
-- [ ] Confirm it appears: `lsusb`, `v4l2-ctl --list-devices`
-- [ ] Record its stable by-id path: `ls -l /dev/v4l/by-id/`
-- [ ] If both cameras have the same serial number: use `/dev/v4l/by-path/` and label the USB ports physically
-- [ ] Add `robot` camera to `config/production.yaml`
-- [ ] Add and start `camera-capture@robot.service`
-- [ ] `GET /readyz` → `{"ready":true,"cameras":{"whiteboard":true,"robot":true}}` ✓
-- [ ] Visual confirmation: snapshot from robot camera shows the robot
-
-**Definition of done:** Both cameras respond to independent snapshot requests with the correct scene.
+**Definition of done:** ✅ Both cameras respond to independent snapshot requests.
 
 ---
 
@@ -192,9 +197,9 @@ Step 1  ✅  Local scaffold + mock API
 Step 2  ✅  Hardware inspection
 Step 3  ✅  Permissions fix
 Step 4  ✅  First real snapshot (118 kB, 1280×720)
-Step 5  ✅  systemd — automatic startup + reboot confirmed
-Step 6  ⚡  Second camera (robot)                ← NEXT
-Step 7  🔲  Nginx TLS + API token
+Step 5  ✅  systemd — PID 1522/1524, survives reboot
+Step 6  ✅  Both cameras live (whiteboard 157 kB, robot 94 kB)
+Step 7  ⚡  Nginx TLS + API token                ← NEXT
 Step 8  🔲  CPEE integration
 Step 9  🔲  Reliability tests + professor sign-off
 ```

@@ -554,11 +554,116 @@ ls -lh /tmp/post-reboot.jpg
 
 ---
 
+## Session 6 — 2026-09-18 · Second camera connected and configured ✓
+
+### Confirm both cameras visible
+
+```bash
+lsusb
+v4l2-ctl --list-devices
+ls -l /dev/v4l/by-id/
+ls -l /dev/v4l/by-path/
+```
+
+**Result:** Two StreamCams with **different serial numbers**:
+- `DA702655` → `/dev/video0` / USB path `2.1.4`
+- `51EF0655` → `/dev/video2` / USB path `2.1.1`
+
+Stable `by-id` paths usable for both cameras (no need for `by-path`). ✓
+
+### Write the robot environment file
+
+```bash
+sudo tee /etc/camera-service/robot.env << 'EOF'
+DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0
+PORT=8102
+RESOLUTION=1280x720
+FPS=15
+EOF
+```
+
+**What it does:** Creates the env file for the robot µStreamer instance (port 8102).
+
+### Correct the whiteboard environment file (cameras were swapped)
+
+```bash
+sudo tee /etc/camera-service/whiteboard.env << 'EOF'
+DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_51EF0655-video-index0
+PORT=8101
+RESOLUTION=1280x720
+FPS=15
+EOF
+```
+
+**What it does:** Corrects the whiteboard assignment — the new camera (`51EF0655`) is physically pointed at the whiteboard.
+
+### Update production config with both cameras
+
+```bash
+cat > ~/camera-service/config/production.yaml << 'EOF'
+cameras:
+  whiteboard:
+    source: v4l2
+    device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_51EF0655-video-index0
+    ustreamer_port: 8101
+    width: 1280
+    height: 720
+    fps: 15
+
+  robot:
+    source: v4l2
+    device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0
+    ustreamer_port: 8102
+    width: 1280
+    height: 720
+    fps: 15
+
+ustreamer:
+  whiteboard_port: 8101
+  robot_port: 8102
+  host: "127.0.0.1"
+
+api:
+  host: "127.0.0.1"
+  port: 8100
+  token: ""
+
+storage:
+  captures_dir: /home/lab/camera-service/var/captures
+EOF
+```
+
+### Enable robot µStreamer and restart all services
+
+```bash
+sudo systemctl enable --now camera-capture@robot
+sudo systemctl restart camera-capture@whiteboard camera-capture@robot camera-api
+```
+
+**What it does:** Starts the robot µStreamer and reloads the FastAPI config to pick up both cameras.
+
+### Validate both cameras
+
+```bash
+curl http://127.0.0.1:8100/readyz
+curl http://127.0.0.1:8100/api/v1/cameras/whiteboard/snapshot.jpg -o /tmp/wb.jpg
+curl http://127.0.0.1:8100/api/v1/cameras/robot/snapshot.jpg -o /tmp/robot.jpg
+ls -lh /tmp/wb.jpg /tmp/robot.jpg
+```
+
+**Result:**
+- `/readyz` → `{"ready":true,"cameras":{"whiteboard":true,"robot":true}}` ✓
+- whiteboard: **157 kB JPEG** ✓
+- robot: **94 kB JPEG** ✓
+
+**Step 6 complete. Both cameras live. ✓**
+
+---
+
 ## Future sessions (not yet run)
 
 | Session | Purpose |
 |---|---|
-| Session 6 | Connect second camera (robot), add env file, update config |
 | Session 7 | Configure Nginx TLS reverse proxy + API token |
 | Session 8 | CPEE integration test from demo |
-| Session 9 | Full reliability tests (unplug/replug, concurrency) |
+| Session 9 | Full reliability tests (unplug/replug, concurrency, reboot with both cameras) |

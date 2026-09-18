@@ -8,9 +8,37 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- `TESTDOCUMENTATION.md` — 11 numbered manual tests (health, readiness, snapshot headers/content, camera list, event capture create/retrieve/image, 404 error cases, interactive docs), failure mode tests, and a running results log.
-- `ROADMAP.md` — full 9-step project roadmap with completion status, definitions of done, and future work list.
+### Planned
+- Nginx TLS reverse proxy at `https://lab.bpm.in.tum.de/camera-api/`
+- API token authentication enabled
+- CPEE integration test from demo/coruscant
+
+---
+
+## [0.4.0] — 2026-09-18 · Both cameras live ✅
+
+### Hardware
+- Second StreamCam (serial `51EF0655`) connected via USB-C extension cable.
+- Both cameras have **different serial numbers** → stable `by-id` paths usable for both.
+- Camera assignments were initially swapped; corrected by swapping serials in config (no hardware change needed).
+
+### Final camera assignment
+| Name | Serial | USB path | Port |
+|---|---|---|---|
+| whiteboard | `51EF0655` | `2.1.1` | 8101 |
+| robot | `DA702655` | `2.1.4` | 8102 |
+
+### Deployment
+- `/etc/camera-service/robot.env` created.
+- `/etc/camera-service/whiteboard.env` updated with correct serial.
+- `config/production.yaml` updated with both cameras.
+- `camera-capture@robot.service` enabled and started.
+- `camera-api.service` updated: `Wants` now references both capture units.
+
+### Validated
+- `GET /readyz` → `{"ready":true,"cameras":{"whiteboard":true,"robot":true}}` ✓
+- whiteboard snapshot: 157 kB JPEG ✓
+- robot snapshot: 94 kB JPEG ✓
 
 ---
 

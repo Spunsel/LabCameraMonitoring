@@ -6,8 +6,8 @@
 
 [Unit]
 Description=Camera API – BPM Lab
-After=network.target camera-capture@whiteboard.service
-Wants=camera-capture@whiteboard.service
+After=network.target camera-capture@whiteboard.service camera-capture@robot.service
+Wants=camera-capture@whiteboard.service camera-capture@robot.service
 StartLimitBurst=5
 StartLimitIntervalSec=60s
 
