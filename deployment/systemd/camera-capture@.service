@@ -1,0 +1,58 @@
+# /etc/systemd/system/camera-capture@.service
+#
+# Parameterized unit – one instance per camera.
+# Enable with:
+#   systemctl enable --now camera-capture@whiteboard
+#   systemctl enable --now camera-capture@robot
+#
+# Configuration is read from /etc/camera-service/{instance}.env
+# Example:
+#   DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_SERIALX-video-index0
+#   PORT=8101
+#   WIDTH=1920
+#   HEIGHT=1080
+#   FPS=15
+
+[Unit]
+Description=µStreamer camera capture – %i
+Documentation=https://github.com/pikvm/ustreamer
+After=network.target
+# Restart after udev brings the camera device up
+BindsTo=dev-v4l.device
+
+[Service]
+Type=simple
+User=camera-service
+Group=video
+
+EnvironmentFile=/etc/camera-service/%i.env
+
+ExecStart=/usr/bin/ustreamer \
+    --device=${DEVICE} \
+    --host=127.0.0.1 \
+    --port=${PORT} \
+    --width=${WIDTH:-1920} \
+    --height=${HEIGHT:-1080} \
+    --desired-fps=${FPS:-15} \
+    --encoder=HW \
+    --format=MJPEG \
+    --drop-same-frames=10
+
+Restart=on-failure
+RestartSec=5s
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+
+# Harden
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateNetwork=false
+DeviceAllow=/dev/video* rw
+DeviceAllow=char-usb_device rwm
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=camera-capture@%i
+
+[Install]
+WantedBy=multi-user.target

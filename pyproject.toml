@@ -1,0 +1,14 @@
+[project]
+name = "camera-service"
+version = "0.1.0"
+description = "Camera monitoring service for BPM lab – whiteboard and robot cameras"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP"]

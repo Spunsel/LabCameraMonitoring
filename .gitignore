@@ -1,0 +1,42 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Test artefacts ────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Secrets / production config ───────────────────────────────────────────────
+config/production.yaml
+config/secrets.yaml
+.env
+*.key
+*.pem
+*.crt
+
+# ── Captured images (runtime data – stored outside the repo on the server) ────
+captures/
+var/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/

@@ -1,0 +1,38 @@
+# ── Production configuration template ────────────────────────────────────────
+# Copy to config/production.yaml (gitignored) and fill in real values.
+#
+# Find stable device paths on lab after connecting both cameras:
+#   ls -l /dev/v4l/by-id/
+#
+# Camera IDs are sorted by serial number; if the StreamCams have identical
+# serials, use /dev/v4l/by-path/ and label the physical USB ports.
+
+cameras:
+  whiteboard:
+    source: v4l2
+    device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_SERIALX-video-index0
+    ustreamer_port: 8101   # optional: overrides the global default below
+    width: 1920
+    height: 1080
+    fps: 15
+
+  robot:
+    source: v4l2
+    device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_SERIALY-video-index0
+    ustreamer_port: 8102
+    width: 1920
+    height: 1080
+    fps: 15
+
+ustreamer:
+  whiteboard_port: 8101
+  robot_port: 8102
+  host: "127.0.0.1"
+
+api:
+  host: "127.0.0.1"   # Nginx proxies; never expose directly
+  port: 8100
+  token: "REPLACE_WITH_STRONG_RANDOM_TOKEN"
+
+storage:
+  captures_dir: /var/lib/camera-service/captures
