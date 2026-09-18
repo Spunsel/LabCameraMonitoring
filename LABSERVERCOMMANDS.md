@@ -470,12 +470,95 @@ JPEG image data, comment: "", baseline, precision 8, 1280x720, components 3
 
 ---
 
+## Session 5 — 2026-09-18 · systemd installation and reboot test ✓
+
+### Create the environment config directory
+
+```bash
+sudo mkdir -p /etc/camera-service
+```
+
+**What it does:** Creates the directory that holds per-camera environment files read by the systemd units.
+
+### Write the whiteboard camera environment file
+
+```bash
+sudo tee /etc/camera-service/whiteboard.env << 'EOF'
+DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0
+PORT=8101
+RESOLUTION=1280x720
+FPS=15
+EOF
+```
+
+**What it does:** Creates the environment file read by `camera-capture@whiteboard.service`. Each variable maps to a µStreamer command-line argument.
+
+### Install the systemd unit files
+
+```bash
+sudo cp ~/camera-service/deployment/systemd/camera-capture@.service /etc/systemd/system/
+sudo cp ~/camera-service/deployment/systemd/camera-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+**What it does:** Copies both unit files to the system-wide location and reloads the systemd config.
+
+### Enable and start both services
+
+```bash
+sudo systemctl enable --now camera-capture@whiteboard
+sudo systemctl enable --now camera-api
+```
+
+**What it does:** Enables both services (auto-start on boot) and starts them immediately.
+**Result:** Symlinks created. ✓
+
+### Fix — bash default syntax not supported in ExecStart
+
+```bash
+sudo cp ~/camera-service/deployment/systemd/camera-capture@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart camera-capture@whiteboard
+```
+
+**What it does:** Fixed `${RESOLUTION:-1280x720}` → `${RESOLUTION}` in the unit file. Systemd does not support bash-style fallback syntax in `ExecStart`.
+**Result:** `active (running)`. ✓
+
+### Reboot the lab server
+
+```bash
+sudo reboot
+```
+
+**What it does:** Verifies both services start automatically. SSH drops immediately — normal.
+
+### Post-reboot verification
+
+```bash
+systemctl --failed --no-pager
+systemctl status camera-capture@whiteboard camera-api --no-pager
+curl http://127.0.0.1:8100/healthz
+curl http://127.0.0.1:8100/readyz
+curl http://127.0.0.1:8100/api/v1/cameras/whiteboard/snapshot.jpg -o /tmp/post-reboot.jpg
+ls -lh /tmp/post-reboot.jpg
+```
+
+**Result:**
+- `systemctl --failed` → `0 loaded units listed` ✓
+- Both services `active (running)` at PID 1522 / 1524 (started at boot) ✓
+- `/healthz` → `{"status":"ok"}` ✓
+- `/readyz` → `{"ready":true,"cameras":{"whiteboard":true}}` ✓
+- Snapshot → 102 kB JPEG ✓
+
+**Step 5 complete. Service survives reboot with no manual intervention. ✓**
+
+---
+
 ## Future sessions (not yet run)
 
 | Session | Purpose |
 |---|---|
-| Session 5 | Set up systemd units for automatic startup on boot |
-| Session 6 | Connect second camera, update config, test `robot` snapshot |
+| Session 6 | Connect second camera (robot), add env file, update config |
 | Session 7 | Configure Nginx TLS reverse proxy + API token |
 | Session 8 | CPEE integration test from demo |
-| Session 9 | Reboot, unplug/replug, concurrency tests |
+| Session 9 | Full reliability tests (unplug/replug, concurrency) |
