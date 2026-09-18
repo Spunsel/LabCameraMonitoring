@@ -8,6 +8,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `TESTDOCUMENTATION.md` — 11 numbered manual tests (health, readiness, snapshot headers/content, camera list, event capture create/retrieve/image, 404 error cases, interactive docs), failure mode tests, and a running results log.
+
 ### Planned
 - systemd units for automatic startup (`camera-capture@whiteboard`, `camera-api`)
 - Second camera (`robot`) connected and configured
