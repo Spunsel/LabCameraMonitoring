@@ -1,6 +1,5 @@
 # ── Local development configuration ──────────────────────────────────────────
 # Uses MockCameraSource so no physical cameras or µStreamer is required.
-# Safe to commit; contains no secrets.
 
 cameras:
   whiteboard:
