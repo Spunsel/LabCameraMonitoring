@@ -8,6 +8,8 @@
 Description=Camera API – BPM Lab
 After=network.target camera-capture@whiteboard.service
 Wants=camera-capture@whiteboard.service
+StartLimitBurst=5
+StartLimitIntervalSec=60s
 
 [Service]
 Type=simple
@@ -27,8 +29,6 @@ ExecStart=/home/lab/camera-service/.venv/bin/uvicorn api.main:app \
 
 Restart=on-failure
 RestartSec=5s
-StartLimitBurst=5
-StartLimitIntervalSec=60s
 
 StandardOutput=journal
 StandardError=journal

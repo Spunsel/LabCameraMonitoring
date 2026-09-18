@@ -12,6 +12,8 @@
 Description=µStreamer camera capture – %i
 Documentation=https://github.com/pikvm/ustreamer
 After=network.target
+StartLimitBurst=5
+StartLimitIntervalSec=60s
 
 [Service]
 Type=simple
@@ -30,8 +32,6 @@ ExecStart=/usr/bin/ustreamer \
 
 Restart=on-failure
 RestartSec=5s
-StartLimitBurst=5
-StartLimitIntervalSec=60s
 
 StandardOutput=journal
 StandardError=journal
