@@ -255,6 +255,32 @@ file /tmp/wb.jpg
 
 ---
 
+## Session 2 — 2026-09-18 · Filesystem exploration (read-only)
+
+Navigation commands to verify the device tree. No changes made.
+
+### Confirm video devices are present in /dev
+
+```bash
+ls /dev
+```
+
+**What it does:** Lists all device nodes. Confirms `/dev/video0` and `/dev/video1` are present, meaning the kernel has recognised the StreamCam.
+**Result:** Both `video0` and `video1` visible. ✓
+
+### Confirm V4L2 by-id directory exists
+
+```bash
+ls /dev/v4l/
+```
+
+**What it does:** Confirms the V4L2 stable-path directory structure exists.
+**Result:** Both `by-id/` and `by-path/` present. ✓
+
+**Conclusion:** Camera is recognised. Permission is the only remaining blocker — `lab` user is not in the `video` group yet.
+
+---
+
 ## Future sessions (not yet run)
 
 | Session | Purpose |
