@@ -6,17 +6,38 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased] — on lab.bpm.in.tum.de
-
-Changes that have been developed locally but not yet deployed to the lab server.
+## [Unreleased]
 
 ### Planned
-- Production deployment with real V4L2 / µStreamer camera source
 - systemd units for automatic startup (`camera-capture@whiteboard`, `camera-api`)
+- Second camera (`robot`) connected and configured
 - Nginx TLS reverse proxy at `https://lab.bpm.in.tum.de/camera-api/`
 - API token authentication enabled
-- Second camera (`robot`) connected and configured
 - CPEE integration test from demo/coruscant
+
+---
+
+## [0.2.0] — 2026-09-18 · First real camera snapshot on lab ✓
+
+### Hardware
+- µStreamer 6.12 installed via `sudo dnf install -y ustreamer` from standard Fedora repos.
+- StreamCam produces 118 kB JPEG frames at 1280×720 over USB 2.0. Confirmed real colour image.
+- Harmless startup warning: `Device doesn't support setting of HW encoding quality parameters` — StreamCam handles its own JPEG encoding internally; frames are delivered correctly.
+
+### Deployment
+- Project code deployed to `~/camera-service/` on lab via `rsync`.
+- Python venv created at `~/camera-service/.venv/` with all deps installed.
+- `config/production.yaml` written with single whiteboard camera using stable `/dev/v4l/by-id/` path.
+- µStreamer and FastAPI running in foreground (manual start — systemd comes next).
+
+### Fixed
+- rsync command: use `lab:` SSH alias instead of `lab.bpm.in.tum.de:` to avoid `Permission denied` when local username differs from server username.
+- µStreamer resolution flag: `--resolution 1280x720` not `--width 1280 --height 720`.
+
+### Validated on lab
+- `GET /healthz` → `{"status":"ok"}` ✓
+- `GET /readyz` → `{"ready":true}` ✓
+- `GET /api/v1/cameras/whiteboard/snapshot.jpg` → 118 kB JPEG, 1280×720, colour ✓
 
 ---
 

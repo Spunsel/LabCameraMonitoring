@@ -328,7 +328,145 @@ Camera accessible. ✓ USB path `c3:00.3-2.1.4` records the physical port locati
 
 ---
 
-## Session 4 — 2026-09-18 · Deploy code and install dependencies [PLANNED]
+## Session 4 — 2026-09-18 · Deploy code, install dependencies, first real snapshot ✓
+
+### Sync project files from local machine to lab
+
+```bash
+rsync -av \
+    --exclude='.venv' \
+    --exclude='var/' \
+    --exclude='.git' \
+    --exclude='LABSERVERCOMMANDS.md' \
+    --exclude='CHANGELOG.md' \
+    /home/christianhorne/CameraMonitoring/ \
+    lab:~/camera-service/
+```
+
+**What it does:** Copies source code, config templates, deployment files, and tests to `~/camera-service/` on lab. Excludes the venv (built fresh on lab), runtime captures, git history, and local-only documentation.
+**Result:** Transfer successful. ✓
+
+### Check µStreamer availability
+
+```bash
+dnf search ustreamer
+```
+
+**What it does:** Searches Fedora repos for the ustreamer package before attempting install.
+**Result:** `ustreamer.x86_64: Lightweight and fast MJPG-HTTP streamer` found. ✓
+
+### Install µStreamer
+
+```bash
+sudo dnf install -y ustreamer
+```
+
+**What it does:** Installs µStreamer (version 6.12) from the Fedora package repository.
+**Result:** Installed successfully. ✓
+
+### Create Python virtual environment
+
+```bash
+cd ~/camera-service
+python3 -m venv .venv
+```
+
+**What it does:** Creates an isolated Python environment in `~/camera-service/.venv/`. Does not affect the system Python.
+**Result:** Created successfully. ✓
+
+### Install Python dependencies
+
+```bash
+.venv/bin/pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx PyYAML
+```
+
+**What it does:** Installs all packages the FastAPI service needs, isolated inside `.venv`.
+**Result:** All packages installed successfully (fastapi-0.141.1, uvicorn-0.53.0, pydantic-2.13.5, etc.). ✓
+
+### Write production config
+
+```bash
+cat > ~/camera-service/config/production.yaml << 'EOF'
+cameras:
+  whiteboard:
+    source: v4l2
+    device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0
+    ustreamer_port: 8101
+    width: 1280
+    height: 720
+    fps: 15
+
+ustreamer:
+  whiteboard_port: 8101
+  host: "127.0.0.1"
+
+api:
+  host: "127.0.0.1"
+  port: 8100
+  token: ""
+
+storage:
+  captures_dir: /home/lab/camera-service/var/captures
+EOF
+```
+
+**What it does:** Creates the gitignored production config using the stable by-id device path found in Session 1. 1280×720 because the camera is on USB 2.0 (480M).
+**Result:** File written to `~/camera-service/config/production.yaml`. ✓
+
+### Start µStreamer (foreground)
+
+```bash
+ustreamer \
+  --device /dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0 \
+  --host 127.0.0.1 --port 8101 \
+  --format MJPEG --resolution 1280x720 --desired-fps 15
+```
+
+**What it does:** Opens the StreamCam and begins capturing frames continuously, serving them over HTTP on `127.0.0.1:8101`. Note: `--resolution WxH` is the correct flag (not `--width`/`--height`).
+**Result:** `Capturing started` — µStreamer 6.12 running. The `ERROR: Device doesn't support setting of HW encoding quality parameters` line is harmless; the StreamCam handles its own JPEG encoding. ✓
+
+### Start FastAPI service (foreground, second terminal)
+
+```bash
+cd ~/camera-service
+CAMERA_SERVICE_CONFIG=config/production.yaml \
+  .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8100
+```
+
+**What it does:** Starts the camera API. Reads `config/production.yaml`, builds the camera registry with `UStreamerCameraSource` for `whiteboard`, listens on `127.0.0.1:8100`.
+**Result:** `Application startup complete. Uvicorn running on http://127.0.0.1:8100`. ✓
+
+### Validate — health check
+
+```bash
+curl http://127.0.0.1:8100/healthz
+```
+
+**Result:** `{"status":"ok"}` ✓
+
+### Validate — camera readiness
+
+```bash
+curl http://127.0.0.1:8100/readyz
+```
+
+**Result:** `{"ready":true,...}` ✓
+
+### Validate — real snapshot from physical camera
+
+```bash
+curl http://127.0.0.1:8100/api/v1/cameras/whiteboard/snapshot.jpg -o /tmp/wb.jpg
+ls -lh /tmp/wb.jpg
+file /tmp/wb.jpg
+```
+
+**Result:**
+```
+-rw-r--r-- 1 lab lab 118K Sep 18 15:29 /tmp/wb.jpg
+JPEG image data, comment: "", baseline, precision 8, 1280x720, components 3
+```
+
+**118 kB real colour JPEG at 1280×720. First successful snapshot from the physical camera. ✓**
 
 ---
 
@@ -336,8 +474,8 @@ Camera accessible. ✓ USB path `c3:00.3-2.1.4` records the physical port locati
 
 | Session | Purpose |
 |---|---|
-| Session 5 | Connect second camera, update config, test `robot` snapshot |
-| Session 6 | Install systemd units for automatic startup |
+| Session 5 | Set up systemd units for automatic startup on boot |
+| Session 6 | Connect second camera, update config, test `robot` snapshot |
 | Session 7 | Configure Nginx TLS reverse proxy + API token |
 | Session 8 | CPEE integration test from demo |
 | Session 9 | Reboot, unplug/replug, concurrency tests |
