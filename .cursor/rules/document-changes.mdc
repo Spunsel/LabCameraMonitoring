@@ -1,0 +1,55 @@
+---
+description: Keep CHANGELOG.md and LABSERVERCOMMANDS.md up to date after every change
+alwaysApply: true
+---
+
+# Documentation after every change
+
+After **any** modification to this project — code, config, tests, deployment files, or architecture — you must:
+
+## 1. Update `CHANGELOG.md`
+
+Add a bullet to the `[Unreleased]` section using the appropriate tag:
+
+- **Added** — new files, endpoints, or features
+- **Changed** — changed behaviour, config, or structure
+- **Fixed** — bug fixes
+- **Removed** — deleted files or endpoints
+- **Security** — auth or access control changes
+- **Hardware** — physical changes on the lab server (cables, cameras, USB ports)
+- **Deployment** — systemd, Nginx, or server config changes
+
+When a milestone is reached, promote `[Unreleased]` to a new versioned block, e.g. `[0.2.0] — YYYY-MM-DD`.
+
+## 2. Update `LABSERVERCOMMANDS.md` — only if commands were run on `lab.bpm.in.tum.de`
+
+If any SSH commands were executed on the lab server during the session, append them under a new session block:
+
+```markdown
+## Session N — YYYY-MM-DD · <short description>
+
+### <What the command does (one sentence)>
+
+\`\`\`bash
+<command>
+\`\`\`
+
+**What it does:** ...
+**Result:** ...
+```
+
+Mark commands that are planned but not yet executed with `[PLANNED]`.
+
+## What counts as a change
+
+- Any edit to a file in `api/`, `tests/`, `config/`, or `deployment/`
+- Any new file added to the repository
+- Any git commit
+- Any command run on the lab SSH server
+- Any architectural or hardware decision made
+
+## What does NOT need a changelog entry
+
+- Edits to `CHANGELOG.md` or `LABSERVERCOMMANDS.md` themselves
+- Edits to `.cursor/rules/`
+- Whitespace-only or comment-only changes
