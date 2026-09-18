@@ -102,15 +102,15 @@ cameras:
   whiteboard:
     source: v4l2
     device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_SERIALX-video-index0
-    width: 1920
-    height: 1080
-    fps: 15
+    width: 1280
+    height: 720
+    fps: 30
   robot:
     source: v4l2
     device: /dev/v4l/by-id/usb-046d_Logitech_StreamCam_SERIALY-video-index0
-    width: 1920
-    height: 1080
-    fps: 15
+    width: 1280
+    height: 720
+    fps: 30
 
 ustreamer:
   whiteboard_port: 8101
