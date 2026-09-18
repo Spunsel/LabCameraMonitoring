@@ -6,23 +6,22 @@
 
 [Unit]
 Description=Camera API – BPM Lab
-Documentation=https://lab.bpm.in.tum.de/camera-api/docs
-After=network.target camera-capture@whiteboard.service camera-capture@robot.service
-Wants=camera-capture@whiteboard.service camera-capture@robot.service
+After=network.target camera-capture@whiteboard.service
+Wants=camera-capture@whiteboard.service
 
 [Service]
 Type=simple
-User=camera-service
-Group=camera-service
+User=lab
+Group=lab
 
-WorkingDirectory=/opt/camera-service
+WorkingDirectory=/home/lab/camera-service
 
-Environment=CAMERA_SERVICE_CONFIG=/etc/camera-service/production.yaml
+Environment=CAMERA_SERVICE_CONFIG=/home/lab/camera-service/config/production.yaml
 
-ExecStart=/opt/camera-service/.venv/bin/uvicorn api.main:app \
+ExecStart=/home/lab/camera-service/.venv/bin/uvicorn api.main:app \
     --host 127.0.0.1 \
     --port 8100 \
-    --workers 2 \
+    --workers 1 \
     --log-level info \
     --access-log
 
@@ -30,12 +29,6 @@ Restart=on-failure
 RestartSec=5s
 StartLimitBurst=5
 StartLimitIntervalSec=60s
-
-# Harden
-NoNewPrivileges=true
-PrivateTmp=true
-PrivateNetwork=false
-ReadWritePaths=/var/lib/camera-service
 
 StandardOutput=journal
 StandardError=journal
