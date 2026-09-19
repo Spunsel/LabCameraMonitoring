@@ -83,7 +83,7 @@ UStreamerCameraSource          ~/camera-service/api/cameras.py
   ◄── JPEG bytes bubble back up through the same chain ──►
 ```
 
-**Total latency (measured):** ~55 ms TTFB from outside the network.
+**Total latency (measured):** ~45 ms TTFB from outside the network.
 
 ---
 
@@ -107,7 +107,7 @@ Nginx                          /etc/nginx/cpee.d/locations.d/camera
 
 FastAPI is **not involved** for streams. Nginx proxies directly to µStreamer.
 
-**Total latency (measured):** ~40 ms TTFB from outside the network.
+**Total latency (measured):** ~28 ms TTFB from outside the network.
 
 ---
 
@@ -145,6 +145,6 @@ boot
  └── camera-api                 →  uvicorn  :8100   →  FastAPI app
                                                           │
 Nginx :443  ──────────────────────────────────────────────┤
-  /cameras/…/stream.mjpeg  →  µStreamer direct             │
-  /cameras/…               →  FastAPI ──────────────────────┘
+  /cameras/…/stream.mjpeg  →  µStreamer direct            │
+  /cameras/…               →  FastAPI ────────────────────┘
 ```
