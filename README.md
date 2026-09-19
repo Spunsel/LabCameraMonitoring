@@ -95,7 +95,7 @@ curl http://127.0.0.1:8100/api/v1/cameras/whiteboard/snapshot.jpg -o whiteboard.
 ## Configuration
 
 Copy `config/production.example.yaml` to `config/production.yaml` (not
-committed) and fill in the real device paths and API token.
+committed) and fill in the real device paths.
 
 ```yaml
 cameras:
@@ -135,16 +135,81 @@ sudo dnf install ustreamer
 sudo usermod -aG video lab
 # log out and back in
 
-# 3. Copy and enable systemd units
+# 3. Sync code to the server (from local machine)
+rsync-lab   # uses the alias defined in the "Updating" section below
+
+# 4. Create Python venv and install dependencies (on server)
+cd ~/camera-service
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 5. Create production config from the template (on server)
+cp config/production.example.yaml config/production.yaml
+# Edit production.yaml: fill in real device paths from /dev/v4l/by-id/
+
+# 6. Create camera environment files (on server, not in repo)
+sudo mkdir -p /etc/camera-service
+
+# whiteboard camera
+sudo tee /etc/camera-service/whiteboard.env <<EOF
+DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_51EF0655-video-index0
+PORT=8101
+RESOLUTION=1280x720
+FPS=30
+EOF
+
+# robot camera
+sudo tee /etc/camera-service/robot.env <<EOF
+DEVICE=/dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0
+PORT=8102
+RESOLUTION=1280x720
+FPS=30
+EOF
+
+# 7. Create capture storage directory (on server)
+sudo mkdir -p /var/lib/camera-service/captures
+sudo chown lab:lab /var/lib/camera-service/captures
+
+# 8. Install and enable systemd units (on server)
 sudo cp deployment/systemd/*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now camera-capture@whiteboard
 sudo systemctl enable --now camera-capture@robot
 sudo systemctl enable --now camera-api
 
-# 4. Configure Nginx
-sudo cp deployment/nginx/camera-api.conf /etc/nginx/conf.d/
+# 9. Configure Nginx (on server)
+sudo cp deployment/nginx/camera-api.conf /etc/nginx/cpee.d/locations.d/camera
 sudo nginx -t && sudo systemctl reload nginx
+```
+
+---
+
+## Updating the service after `rsync`
+
+Sync local changes to the server with the `rsync-lab` alias (set in `~/.bashrc`):
+
+```bash
+alias rsync-lab='rsync -av \
+  --exclude=".git" --exclude=".venv" --exclude="var/" \
+  --exclude=".pytest_cache" --exclude="test-captures" \
+  --exclude="config/production.yaml" --exclude="LABSERVERCOMMANDS.md" \
+  --exclude="ROADMAP.md" --exclude="TESTDOCUMENTATION.md" \
+  ~/CameraMonitoring/ lab:~/camera-service/'
+```
+
+After running `rsync-lab`, SSH into the server and run only what changed:
+
+| What changed | Commands on lab |
+|---|---|
+| `api/*.py` | `sudo systemctl restart camera-api` |
+| `deployment/nginx/camera-api.conf` | `sudo cp ~/camera-service/deployment/nginx/camera-api.conf /etc/nginx/cpee.d/locations.d/camera && sudo nginx -t && sudo systemctl reload nginx` |
+| `deployment/systemd/*.service` | `sudo cp ~/camera-service/deployment/systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart camera-api camera-capture@whiteboard camera-capture@robot` |
+
+After restarting FastAPI, verify it came back up:
+
+```bash
+sudo systemctl status camera-api
+curl -s http://127.0.0.1:8100/healthz
 ```
 
 ---
