@@ -43,9 +43,6 @@ class UStreamerConfig(BaseModel):
 class ApiConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8100
-    # Set to a non-empty string to require Bearer token auth.
-    # Leave empty to disable auth (local development).
-    token: str = ""
 
 
 # ── Storage config ────────────────────────────────────────────────────────────

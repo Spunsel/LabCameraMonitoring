@@ -1,9 +1,8 @@
 """Camera abstraction layer.
 
-Three concrete sources are provided:
+Two concrete sources are provided:
 
   MockCameraSource        – returns a static JPEG from disk; for local dev.
-  VideoFileCameraSource   – cycles frames from a video file; for integration tests.
   UStreamerCameraSource   – fetches JPEG snapshots from a running µStreamer
                             process over HTTP; used in production on lab.
 

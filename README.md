@@ -118,7 +118,6 @@ ustreamer:
 
 api:
   port: 8100
-  token: "REPLACE_ME"
 
 storage:
   captures_dir: /var/lib/camera-service/captures
@@ -180,15 +179,4 @@ camera-service/
 └── README.md
 ```
 
----
 
-## Rollout sequence
-
-1. Local: implement mock cameras → snapshot + health endpoints.
-2. Lab (early): deploy one-camera minimal version bound to localhost.
-3. Lab: connect second camera, validate by-id paths.
-4. Lab: add event capture and CPEE integration test.
-5. Lab: configure HTTPS reverse proxy and API token.
-6. Lab: systemd + reboot / unplug / concurrency tests.
-7. Retire old ngrok endpoints.
-8. (Later) Fedora upgrade in a separate maintenance window.

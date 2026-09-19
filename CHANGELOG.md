@@ -11,14 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
 - `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
-- `README.md`: updated config example to 1280×720 @ 30 fps; added 8-step request flow section
-
-### Planned
-- Apply FPS=30 in `/etc/camera-service/*.env` on lab server and restart µStreamer
-- Deploy new `camera-api.conf` to lab server and reload Nginx
-- API token authentication (set `token:` in `config/production.yaml`)
-- CPEE integration test from demo/coruscant
-- Evaluate RTSP/ffmpeg approach for even lower latency (code review Monday)
+- `README.md`: updated config example to 1280×720 @ 30 fps
 
 ---
 
@@ -64,13 +57,6 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Security (observation — not actioned)
 - Lab server is receiving ongoing SSH brute-force attempts from external IPs. All are blocked. Worth reporting to lab admin for `fail2ban` or network-level SSH restriction.
-
-### Planned
-- systemd units for automatic startup (`camera-capture@whiteboard`, `camera-api`)
-- Second camera (`robot`) connected and configured
-- Nginx TLS reverse proxy at `https://lab.bpm.in.tum.de/camera-api/`
-- API token authentication enabled
-- CPEE integration test from demo/coruscant
 
 ---
 

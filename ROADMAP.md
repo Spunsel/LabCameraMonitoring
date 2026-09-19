@@ -10,8 +10,6 @@ Tracks every milestone from initial scaffold to full production deployment.
 | Symbol | Meaning |
 |---|---|
 | ✅ | Completed |
-| 🔲 | Not yet started |
-| ⚡ | Next immediate action |
 
 ---
 
@@ -125,71 +123,6 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Step 7 — Nginx TLS reverse proxy + API token 🔲
-
-**Goal:** The service is reachable at a stable HTTPS URL from outside the machine, with authentication.
-
-- [ ] Inspect the existing Nginx config on lab: `sudo nginx -T 2>&1 | grep -E 'server_name|listen|location|proxy_pass'`
-- [ ] Determine the target URL (e.g. `https://lab.bpm.in.tum.de/camera-api/`)
-- [ ] Copy `deployment/nginx/camera-api.conf` to `/etc/nginx/conf.d/`
-- [ ] Adjust `server_name` and SSL certificate paths to match the existing TUM setup
-- [ ] Generate a strong API token: `openssl rand -hex 32`
-- [ ] Set `token:` in `config/production.yaml`
-- [ ] `sudo nginx -t && sudo systemctl reload nginx`
-- [ ] Test with token: `curl -H "Authorization: Bearer <token>" https://lab.bpm.in.tum.de/camera-api/healthz`
-- [ ] Test that requests without token are rejected with `401`
-- [ ] Test that MJPEG stream (`stream.mjpeg`) flows without buffering
-
-**Definition of done:** `https://lab.bpm.in.tum.de/camera-api/api/v1/cameras/whiteboard/snapshot.jpg` returns a JPEG with a valid token. No token → 401.
-
----
-
-## Step 8 — CPEE integration test 🔲
-
-**Goal:** A real CPEE process on demo/coruscant can trigger a capture and receive image URLs.
-
-- [ ] Confirm demo can reach lab: `curl --connect-timeout 5 https://lab.bpm.in.tum.de/camera-api/healthz` (from demo)
-- [ ] Create a minimal CPEE test workflow with one HTTP activity:
-  - Method: `POST`
-  - URL: `https://lab.bpm.in.tum.de/camera-api/api/v1/captures`
-  - Header: `Authorization: Bearer <token>`
-  - Body: `{"event_id": "cpee-test-001", "cameras": ["whiteboard", "robot"], "store": true}`
-- [ ] Run the workflow and confirm the response contains image URLs
-- [ ] Download the captured images from the returned URLs and confirm they are correct
-
-**Definition of done:** CPEE workflow completes with `201` and valid image URLs pointing to real lab photos.
-
----
-
-## Step 9 — Reliability and acceptance tests 🔲
-
-**Goal:** Verify the service survives real-world failure conditions before declaring it production-ready.
-
-- [ ] **Reboot test** — `sudo reboot`; after restart both cameras respond within 60 seconds
-- [ ] **Unplug whiteboard camera** — `/readyz` returns `503` within a few seconds; logs show disconnect
-- [ ] **Replug whiteboard camera** — µStreamer reconnects; `/readyz` returns `200` again without manual intervention
-- [ ] **Concurrent snapshot requests** — run 5 `curl` commands simultaneously; all return valid JPEGs
-- [ ] **Invalid token** — `curl` without token returns `401`, not `500`
-- [ ] **Unknown camera** — `GET /api/v1/cameras/nonexistent/snapshot.jpg` returns `404`
-- [ ] **Capture directory full** (simulate) — service returns meaningful error, does not crash
-- [ ] **Professor walkthrough** — demonstrate framing and image quality; adjust camera position if needed
-
-**Definition of done:** All failure cases handled cleanly. Professor has approved image framing. Old ngrok endpoints can be retired.
-
----
-
-## After Step 9 — Future work (out of scope for now)
-
-| Item | Why deferred |
-|---|---|
-| Fedora 41 → 42 upgrade | Separate maintenance window; needs server admin coordination |
-| Continuous recording | Introduces storage, retention, and privacy requirements |
-| WebRTC / HLS live stream | Can be added later without changing the public URL structure |
-| MQTT-triggered capture | Only needed if existing CPEE models already use MQTT |
-| Privacy / data protection review | Coordinate with TUM data-protection contact before any recording |
-
----
-
 ## Progress summary
 
 ```
@@ -199,7 +132,4 @@ Step 3  ✅  Permissions fix
 Step 4  ✅  First real snapshot (118 kB, 1280×720)
 Step 5  ✅  systemd — PID 1522/1524, survives reboot
 Step 6  ✅  Both cameras live (whiteboard 157 kB, robot 94 kB)
-Step 7  ⚡  Nginx TLS + API token                ← NEXT
-Step 8  🔲  CPEE integration
-Step 9  🔲  Reliability tests + professor sign-off
 ```

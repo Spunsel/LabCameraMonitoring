@@ -13,11 +13,10 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, Security
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from api.cameras import CameraSource, build_camera_registry
@@ -51,21 +50,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
-
-# ── Authentication ─────────────────────────────────────────────────────────────
-
-_bearer = HTTPBearer(auto_error=False)
-
-
-def verify_token(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-) -> None:
-    required = settings.api.token
-    if not required:
-        return  # auth disabled in development
-    if credentials is None or credentials.credentials != required:
-        raise HTTPException(status_code=401, detail="Invalid or missing Bearer token")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,7 +89,7 @@ async def readyz() -> dict[str, Any]:
 
 # ── Camera endpoints ──────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cameras", tags=["cameras"], dependencies=[Depends(verify_token)])
+@app.get("/api/v1/cameras", tags=["cameras"])
 async def list_cameras() -> dict[str, Any]:
     """List all configured cameras and their availability."""
     result = {}
@@ -123,7 +107,6 @@ async def list_cameras() -> dict[str, Any]:
     "/api/v1/cameras/{camera_id}/snapshot.jpg",
     tags=["cameras"],
     response_class=Response,
-    dependencies=[Depends(verify_token)],
 )
 async def get_snapshot(camera_id: str) -> Response:
     """Return the latest JPEG snapshot for a camera."""
@@ -147,7 +130,6 @@ async def get_snapshot(camera_id: str) -> Response:
 @app.get(
     "/api/v1/cameras/{camera_id}/stream.mjpeg",
     tags=["cameras"],
-    dependencies=[Depends(verify_token)],
 )
 async def get_stream(camera_id: str, fps: int = 10) -> StreamingResponse:
     """MJPEG live stream.  Polls the camera at `fps` frames per second."""
@@ -197,7 +179,6 @@ class CaptureResponse(BaseModel):
     tags=["captures"],
     response_model=CaptureResponse,
     status_code=201,
-    dependencies=[Depends(verify_token)],
 )
 async def create_capture(req: CaptureRequest) -> CaptureResponse:
     """Capture one or more cameras and (optionally) persist the images."""
@@ -222,7 +203,6 @@ async def create_capture(req: CaptureRequest) -> CaptureResponse:
     "/api/v1/captures/{event_id}",
     tags=["captures"],
     response_model=CaptureResponse,
-    dependencies=[Depends(verify_token)],
 )
 async def get_capture(event_id: str) -> CaptureResponse:
     """Retrieve metadata for a previously stored capture."""
@@ -242,7 +222,6 @@ async def get_capture(event_id: str) -> CaptureResponse:
     "/api/v1/captures/{event_id}/{camera_id}.jpg",
     tags=["captures"],
     response_class=Response,
-    dependencies=[Depends(verify_token)],
 )
 async def get_capture_image(event_id: str, camera_id: str) -> Response:
     """Return the stored JPEG for a specific camera in a capture event."""
