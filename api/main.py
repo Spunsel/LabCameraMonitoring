@@ -10,13 +10,14 @@ Environment variables:
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import time as _time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -80,10 +81,9 @@ async def healthz() -> dict[str, str]:
 @app.get("/readyz", tags=["health"])
 async def readyz() -> dict[str, Any]:
     """All configured cameras are delivering frames."""
-    statuses = {
-        cam_id: await src.is_available()
-        for cam_id, src in _cameras.items()
-    }
+    cam_ids = list(_cameras)
+    results = await asyncio.gather(*(_cameras[c].is_available() for c in cam_ids))
+    statuses = dict(zip(cam_ids, results))
     all_ready = all(statuses.values())
     return JSONResponse(
         status_code=200 if all_ready else 503,
@@ -96,15 +96,17 @@ async def readyz() -> dict[str, Any]:
 @app.get("/api/v1/cameras", tags=["cameras"])
 async def list_cameras() -> dict[str, Any]:
     """List all configured cameras and their availability."""
-    result = {}
-    for cam_id, src in _cameras.items():
-        result[cam_id] = {
+    cam_ids = list(_cameras)
+    available = await asyncio.gather(*(_cameras[c].is_available() for c in cam_ids))
+    return {
+        cam_id: {
             "id": cam_id,
-            "available": await src.is_available(),
+            "available": avail,
             "snapshot_url": f"/api/v1/cameras/{cam_id}/snapshot.jpg",
             "stream_url": f"/api/v1/cameras/{cam_id}/stream.mjpeg",
         }
-    return result
+        for cam_id, avail in zip(cam_ids, available)
+    }
 
 
 @app.get(
@@ -179,16 +181,42 @@ class CaptureResponse(BaseModel):
 
 
 @app.get("/api/v1/captures", tags=["captures"])
-async def list_captures() -> list[str]:
-    """List stored capture event IDs, most recent first (max 20)."""
+async def list_captures(
+    limit: int = Query(default=10, ge=1, le=50),
+) -> list[dict[str, Any]]:
+    """List stored captures with metadata (event_id, captured_at, image sizes).
+    Sorted by creation time, most recent first."""
     captures_dir = settings.storage.captures_dir
     if not captures_dir.exists():
         return []
-    ids = sorted(
-        (p.name for p in captures_dir.iterdir() if p.is_dir()),
+
+    dirs = sorted(
+        (p for p in captures_dir.iterdir() if p.is_dir()),
+        key=lambda p: p.stat().st_mtime,
         reverse=True,
-    )
-    return ids[:20]
+    )[:limit]
+
+    results: list[dict[str, Any]] = []
+    for event_dir in dirs:
+        item: dict[str, Any] = {
+            "event_id": event_dir.name,
+            "captured_at": None,
+            "images": {},           # cam_id → file size in bytes
+        }
+        meta_path = event_dir / "metadata.json"
+        if meta_path.exists():
+            try:
+                meta = _json.loads(meta_path.read_text())
+                item["captured_at"] = meta.get("captured_at")
+                for cam_id in meta.get("images", {}):
+                    img_path = event_dir / f"{cam_id}.jpg"
+                    if img_path.exists():
+                        item["images"][cam_id] = img_path.stat().st_size
+            except Exception:
+                pass
+        results.append(item)
+
+    return results
 
 
 @app.post(
@@ -265,16 +293,16 @@ async def get_capture_image(event_id: str, camera_id: str) -> Response:
 @app.get("/api/v1/status", tags=["monitoring"])
 async def get_status() -> dict[str, Any]:
     """Camera availability and config. Latency is measured client-side."""
-    camera_statuses: dict[str, Any] = {}
-    for cam_id, src in _cameras.items():
-        available = await src.is_available()
-        cfg = settings.cameras.get(cam_id)
-        camera_statuses[cam_id] = {
-            "available": available,
-            "resolution": f"{cfg.width}x{cfg.height}" if cfg else None,
+    cam_ids = list(_cameras)
+    available = await asyncio.gather(*(_cameras[c].is_available() for c in cam_ids))
+    camera_statuses = {
+        cam_id: {
+            "available": avail,
+            "resolution": f"{cfg.width}x{cfg.height}" if (cfg := settings.cameras.get(cam_id)) else None,
             "fps": cfg.fps if cfg else None,
         }
-
+        for cam_id, avail in zip(cam_ids, available)
+    }
     return {
         "uptime_seconds": round(_time.monotonic() - _start_time),
         "cameras": camera_statuses,

@@ -8,13 +8,18 @@ All `curl` commands run on lab in an SSH terminal unless stated otherwise.
 ## Prerequisites
 
 Both processes must be running before any test will work.
+Since systemd is configured (Step 5), they start automatically on boot — **no manual start needed.**
 
-| Process | Command | Port |
+| Process | Systemd unit | Port |
 |---|---|---|
-| µStreamer | `ustreamer --device /dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0 --host 127.0.0.1 --port 8101 --format MJPEG --resolution 1280x720 --desired-fps 15` | 8101 |
-| FastAPI | `CAMERA_SERVICE_CONFIG=config/production.yaml .venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8100` | 8100 |
+| µStreamer (whiteboard) | `camera-capture@whiteboard` | 8101 |
+| µStreamer (robot) | `camera-capture@robot` | 8102 |
+| FastAPI | `camera-api` | 8100 |
 
-After systemd is set up (Session 5) they start automatically — manual start will no longer be needed.
+Check status:
+```bash
+systemctl status camera-capture@whiteboard camera-capture@robot camera-api
+```
 
 ---
 
@@ -45,12 +50,12 @@ curl http://127.0.0.1:8100/readyz
 
 **Expected response (camera healthy):**
 ```json
-{"ready": true, "cameras": {"whiteboard": true}}
+{"ready": true, "cameras": {"whiteboard": true, "robot": true}}
 ```
 
-**Expected response (camera unavailable):**
+**Expected response (one camera unavailable):**
 ```json
-{"ready": false, "cameras": {"whiteboard": false}}
+{"ready": false, "cameras": {"whiteboard": true, "robot": false}}
 ```
 
 **HTTP status:** `200` when ready, `503` when not.
@@ -119,6 +124,12 @@ curl -s http://127.0.0.1:8100/api/v1/cameras | python3 -m json.tool
     "available": true,
     "snapshot_url": "/api/v1/cameras/whiteboard/snapshot.jpg",
     "stream_url": "/api/v1/cameras/whiteboard/stream.mjpeg"
+  },
+  "robot": {
+    "id": "robot",
+    "available": true,
+    "snapshot_url": "/api/v1/cameras/robot/snapshot.jpg",
+    "stream_url": "/api/v1/cameras/robot/stream.mjpeg"
   }
 }
 ```
@@ -189,12 +200,12 @@ file /tmp/captured.jpg
 **What it tests:** Requesting a camera that is not configured returns a clear error, not a crash.
 
 ```bash
-curl -s http://127.0.0.1:8100/api/v1/cameras/robot/snapshot.jpg
+curl -s http://127.0.0.1:8100/api/v1/cameras/nonexistent/snapshot.jpg
 ```
 
 **Expected response:**
 ```json
-{"detail": "Unknown camera 'robot'"}
+{"detail": "Unknown camera 'nonexistent'"}
 ```
 
 **HTTP status:** `404`
@@ -230,6 +241,141 @@ ssh -L 8100:127.0.0.1:8100 lab
 Then open in a browser:
 - **http://127.0.0.1:8100/docs** — Swagger UI (try every endpoint interactively)
 - **http://127.0.0.1:8100/redoc** — ReDoc (clean reference view)
+
+---
+
+## T-12 · Capture list with metadata
+
+**What it tests:** `GET /api/v1/captures` returns rich metadata (event_id, timestamp, file sizes) sorted by most recent first.
+
+```bash
+curl -s http://127.0.0.1:8100/api/v1/captures | python3 -m json.tool
+# With explicit limit:
+curl -s "http://127.0.0.1:8100/api/v1/captures?limit=5" | python3 -m json.tool
+```
+
+**Expected response:**
+```json
+[
+  {
+    "event_id": "test-001",
+    "captured_at": "2026-09-24T09:47:00.123+00:00",
+    "images": {
+      "whiteboard": 165432,
+      "robot": 99210
+    }
+  }
+]
+```
+
+- `images` values are file sizes in bytes.
+- Sorted by mtime (most recently created first).
+- `?limit` accepts 1–50; default 10.
+
+---
+
+## T-13 · Camera status
+
+**What it tests:** The status endpoint returns availability, resolution, fps, and API uptime for all cameras.
+
+```bash
+curl -s http://127.0.0.1:8100/api/v1/status | python3 -m json.tool
+```
+
+**Expected response:**
+```json
+{
+  "uptime_seconds": 3742,
+  "cameras": {
+    "whiteboard": {
+      "available": true,
+      "resolution": "1280x720",
+      "fps": 30
+    },
+    "robot": {
+      "available": true,
+      "resolution": "1280x720",
+      "fps": 30
+    }
+  }
+}
+```
+
+---
+
+## T-14 · Monitoring dashboard
+
+**What it tests:** The dashboard is served and returns valid HTML.
+
+```bash
+curl -s http://127.0.0.1:8100/dashboard | grep -c '<canvas'
+# Expected: 2  (one canvas per camera)
+```
+
+Open in a browser via SSH port forward to view the full dashboard:
+```bash
+# Local machine:
+ssh -L 8100:127.0.0.1:8100 lab
+# Then open: http://127.0.0.1:8100/dashboard
+```
+
+The dashboard loads live MJPEG streams, measures snapshot latency every 5 s, and polls captures every 15 s.
+
+---
+
+## T-15 · Snapshot latency — manual measurement
+
+**What it tests:** End-to-end snapshot latency from server side, for comparison with the dashboard readout.
+
+```bash
+# Floor: µStreamer direct (no FastAPI, no Nginx)
+for cam in whiteboard robot; do
+  port=$([[ $cam == whiteboard ]] && echo 8101 || echo 8102)
+  printf "%-12s µStreamer direct:  " "$cam"
+  for i in $(seq 10); do
+    curl -s -o /dev/null -w "%{time_starttransfer}\n" \
+      "http://127.0.0.1:${port}/?action=snapshot"
+  done | awk '{s+=$1;n++} END{printf "avg TTFB %4.0fms\n", s/n*1000}'
+done
+
+# Full path: through FastAPI (same as dashboard measures, minus network)
+for cam in whiteboard robot; do
+  printf "%-12s FastAPI direct:    " "$cam"
+  for i in $(seq 10); do
+    curl -s -o /dev/null -w "%{time_starttransfer}\n" \
+      "http://127.0.0.1:8100/api/v1/cameras/${cam}/snapshot.jpg"
+  done | awk '{s+=$1;n++} END{printf "avg TTFB %4.0fms\n", s/n*1000}'
+done
+```
+
+**Typical values:**
+- µStreamer direct: ~3–8 ms (localhost HTTP only)
+- FastAPI direct: ~15–20 ms (+ Python/uvicorn overhead)
+- Dashboard reads: ~30–45 ms (+ real network + Nginx + TLS)
+
+---
+
+## T-16 · Real POST capture latency
+
+**What it tests:** How long CPEE actually waits when triggering a capture (both cameras, with and without disk write).
+
+```bash
+# Without disk write (pure camera fetch, both cameras concurrent)
+curl -s -o /dev/null \
+  -w "TTFB %{time_starttransfer}s  total %{time_total}s\n" \
+  -X POST http://127.0.0.1:8100/api/v1/captures \
+  -H "Content-Type: application/json" \
+  -d '{"event_id": "_probe_", "store": false}'
+
+# With disk write (realistic CPEE scenario)
+curl -s -o /dev/null \
+  -w "TTFB %{time_starttransfer}s  total %{time_total}s\n" \
+  -X POST http://127.0.0.1:8100/api/v1/captures \
+  -H "Content-Type: application/json" \
+  -d '{"event_id": "_probe_disk_"}'
+```
+
+**Typical values (server-side):** 15–25 ms TTFB. Disk write adds ~2–5 ms on SSD.
 
 ---
 

@@ -18,9 +18,7 @@ each configured camera and returns a dict[str, CameraSource].
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 from pathlib import Path
 from typing import Protocol
 
@@ -133,7 +131,6 @@ class UStreamerCameraSource:
         self.camera_id = camera_id
         self._base_url = f"http://127.0.0.1:{port}"
         self._client: httpx.AsyncClient | None = None
-        self._last_ok: float = 0.0
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -149,7 +146,6 @@ class UStreamerCameraSource:
         try:
             resp = await client.get(self._SNAPSHOT_PATH)
             resp.raise_for_status()
-            self._last_ok = time.monotonic()
             return resp.content
         except Exception as exc:
             log.warning("Camera %s snapshot failed: %s", self.camera_id, exc)

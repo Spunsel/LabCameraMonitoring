@@ -10,21 +10,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 - [x] `GET /api/v1/status` — returns per-camera availability, resolution, fps, and API uptime; latency is measured client-side
-- [x] `GET /api/v1/captures` — lists stored capture event IDs, most recent first (max 20)
 - [x] `GET /dashboard` — live monitoring dashboard at `https://lab.bpm.in.tum.de/cameras/dashboard`
-- [x] `api/dashboard.py` — self-contained HTML/CSS/JS dashboard
+- [x] `api/dashboard.py` — self-contained HTML/CSS/JS dashboard; three sections: **STREAM** (live feeds), **CAPTURES** (snapshot latency stats + graph), **RECENT CAPTURES** (scrollable per-camera file list with download)
 
 ### Fixed
 - [x] Replaced `assert _store is not None` (3×) with `HTTPException(503)` — asserts can be silently disabled with `python -O`
+- [x] `api/cameras.py`: removed unused `import asyncio`, `import time`, and `self._last_ok` tracking
+- [x] `readyz()`, `list_cameras()`, `get_status()` now ping both cameras in parallel via `asyncio.gather` instead of sequentially
 
 ### Changed
+- [x] `GET /api/v1/captures`: now returns `list[dict]` with rich metadata (`event_id`, `captured_at`, per-camera file sizes in bytes); sorted by mtime (most recent first); accepts `?limit=N` (1–50, default 10) — was `list[str]` capped at 20
 - [x] `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
 - [x] `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
-- [x] `README.md`: updated config example to 1280×720 @ 30 fps
-- [x] Dashboard: latency measured client-side via `performance.now()` + snapshot fetch; frame size from `blob.size` — no extra server requests
-- [x] Dashboard: replaced block-char sparkline with canvas bar chart — fixed bar spacing (1 hr = 720 slots at 5 s/sample), bars right-aligned, color-coded green→yellow→red, Y-axis (0/20/40/60 ms), X-axis (−60m/−30m/now), 50 ms threshold line
-- [x] Dashboard: stats table and latency graph placed side-by-side below each stream
-- [x] Dashboard: status polled every 30 s (config rarely changes); latency measured every 5 s; captures polled every 15 s
+- [x] Dashboard: snapshot latency measured client-side via `performance.now()` + `await fetch()` TTFB; frame size from `blob.size` — no server-side measurement needed
+- [x] Dashboard: canvas bar chart — 30-minute sliding window (360 slots × 5 s), bars right-aligned and color-coded green/yellow/red, dashed white average line with value label
+- [x] Dashboard: `Cache-Control: no-store` on all snapshot responses → no `?t=` cache-buster needed in JS
+- [x] Dashboard: capture list polls `GET /api/v1/captures?limit=50` and filters per camera client-side; re-renders only when event ID changes; configurable rows (1–50, default 10) per camera table with immediate re-render on change
+- [x] Dashboard: polling intervals — status every 30 s, snapshot latency every 5 s, captures every 15 s
+- [x] Rsync-lab alias: corrected exclude from `LABSERVERCOMMANDS.md` → `LAB_COMMANDS.md`
 
 ---
 

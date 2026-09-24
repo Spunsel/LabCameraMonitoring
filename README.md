@@ -34,7 +34,7 @@ snapshots. Image data never passes through demo.
 | `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Current JPEG snapshot |
 | `GET` | `/api/v1/cameras/{id}/stream.mjpeg` | Live MJPEG stream |
 | `POST` | `/api/v1/captures` | Capture one or both cameras (CPEE) |
-| `GET` | `/api/v1/captures` | List stored capture event IDs (max 20) |
+| `GET` | `/api/v1/captures` | List captures with metadata: event_id, date, file sizes. `?limit=N` (1–50, default 10) |
 | `GET` | `/api/v1/captures/{event_id}` | Capture metadata |
 | `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Stored capture image |
 | `GET` | `/api/v1/status` | Camera availability, resolution, fps, uptime |
@@ -195,7 +195,7 @@ Sync local changes to the server with the `rsync-lab` alias (set in `~/.bashrc`)
 alias rsync-lab='rsync -av \
   --exclude=".git" --exclude=".venv" --exclude="var/" \
   --exclude=".pytest_cache" --exclude="test-captures" \
-  --exclude="config/production.yaml" --exclude="LABSERVERCOMMANDS.md" \
+  --exclude="config/production.yaml" --exclude="LAB_COMMANDS.md" \
   --exclude="ROADMAP.md" --exclude="TESTDOCUMENTATION.md" \
   ~/CameraMonitoring/ lab:~/camera-service/'
 ```
@@ -245,6 +245,8 @@ camera-service/
 │   └── test_cameras.py
 ├── requirements.txt
 ├── pyproject.toml
+├── CHANGELOG.md
+├── SERVER_LAYOUT.md
 └── README.md
 ```
 

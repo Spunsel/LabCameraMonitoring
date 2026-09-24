@@ -12,6 +12,7 @@ All files that make up the camera service on the lab server, grouped by location
 | `api/cameras.py` | Camera abstraction. `MockCameraSource` for local dev; `UStreamerCameraSource` fetches JPEG frames from a µStreamer process over HTTP. |
 | `api/captures.py` | Event capture logic. Snapshots both cameras concurrently, saves JPEGs to disk, writes a `metadata.json` side-car. |
 | `api/settings.py` | Config loader. Reads `production.yaml` (or `development.yaml` locally) via Pydantic and exposes a typed `Settings` object. |
+| `api/dashboard.py` | Self-contained HTML/CSS/JS served at `GET /dashboard`. No external dependencies — entire page is one Python string constant. |
 | `config/production.yaml` | **Active config** (gitignored). Contains real device paths, ports, and capture storage path. |
 | `.venv/` | Python virtual environment. All dependencies installed here via `pip`. |
 | `requirements.txt` | Pinned Python dependencies (`fastapi`, `uvicorn`, `httpx`, `pydantic`, …). |
