@@ -15,24 +15,28 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       line-height: 1.6;
       background: #0d0d0d;
       color: #c9c9c9;
-      padding: 1.25rem 1.5rem;
+      padding: 0 1.5rem 1.25rem;
     }
 
     .hdr {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #0d0d0d;
       display: flex;
       justify-content: space-between;
       border-bottom: 1px solid #1e1e1e;
-      padding-bottom: 0.4rem;
+      padding: 1.25rem 0 0.4rem;
       margin-bottom: 1.25rem;
       color: #555;
     }
     .hdr-title { color: #e0e0e0; font-weight: bold; }
 
     .section-lbl {
-      color: #444;
+      color: #e0e0e0;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      font-size: 11px;
+      font-size: 13px;
       margin-bottom: 0.5rem;
     }
 
@@ -163,7 +167,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="section-lbl">stream</div>
   <div class="grid" id="stream-grid"></div>
 
-  <div class="section-lbl">captures</div>
+  <div class="section-lbl">capture metrics</div>
   <div class="grid" id="capture-grid"></div>
 
   <div class="section-lbl">recent captures</div>
@@ -172,6 +176,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <script>
     const BASE    = '/cameras';
     const CAMERAS = ['whiteboard', 'robot'];
+    const CAM_LABEL = { whiteboard: 'whiteboard camera', robot: 'robot camera' };
 
     // 30 min at 5 s/sample = 360 slots
     const TOTAL_SLOTS = 360;
@@ -179,18 +184,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     // Download icon (stroke="currentColor" → styled via CSS)
     const DL_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none"><path d="M3,12.3v7a2,2,0,0,0,2,2H19a2,2,0,0,0,2-2v-7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><polyline points="7.9 12.3 12 16.3 16.1 12.3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><line stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="12" x2="12" y1="2.7" y2="14.2"/></svg>`;
 
-    // TTFB history per camera
+    // TTFB history per camera (snapshot graph)
     const snapHist = {};
     CAMERAS.forEach(id => snapHist[id] = []);
 
-    // ── Build stream cards (stream image only) ───────────────────────────
+    // Stream capture-to-send latency history per camera (stream graph)
+    // Full 360-slot array — null means no data for that 5-second slot.
+    const streamHist = {};
+    CAMERAS.forEach(id => streamHist[id] = new Array(TOTAL_SLOTS).fill(null));
+
+    // ── Build stream cards (stream image + capture latency graph) ──────────
     const sg = document.getElementById('stream-grid');
     CAMERAS.forEach(id => {
       const d = document.createElement('div');
       d.innerHTML = `
-        <div class="cam-lbl"><span class="dot" id="dot-${id}">●</span>${id}</div>
+        <div class="cam-lbl"><span class="dot" id="dot-${id}">●</span>${CAM_LABEL[id]}</div>
         <div class="img-box">
           <img src="${BASE}/api/v1/cameras/${id}/stream.mjpeg" alt="${id}">
+        </div>
+        <div class="cam-bottom" style="margin-top:0.5rem">
+          <div class="cam-stats">
+            <table class="mt">
+              <tr><td class="k">capture latency</td><td id="stream-lat-${id}" class="m">—</td></tr>
+              <tr><td class="k">stream status</td><td id="stream-state-${id}" class="m">—</td></tr>
+            </table>
+          </div>
+          <div class="cam-graph">
+            <canvas id="graph-stream-${id}"></canvas>
+          </div>
         </div>`;
       sg.appendChild(d);
     });
@@ -204,7 +225,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       // ── Snapshot stats + graph ──
       const cs = document.createElement('div');
       cs.innerHTML = `
-        <div class="cam-lbl" style="margin-bottom:0.4rem">${id}</div>
         <div class="cam-bottom">
           <div class="cam-stats">
             <table class="mt">
@@ -224,7 +244,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const rt = document.createElement('div');
       rt.innerHTML = `
         <div class="cap-col-hdr">
-          <div class="cam-lbl" style="margin-bottom:0">${id}</div>
           <label class="cap-limit-label">show last
             <input type="number" class="cap-limit" id="cap-limit-${id}"
                    value="10" min="1" max="50">
@@ -247,7 +266,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     // ── Bar chart ────────────────────────────────────────────────────────
     const SNAP_GRAPH_OPTS = {
       maxVal:  100,
-      ySteps:  [0, 25, 50, 100],
+      ySteps:  [0, 25, 50, 75, 100],
+      unit:    'ms',
+      colorFn: v => v < 50 ? '#4ade80' : v < 100 ? '#fbbf24' : '#f87171',
+    };
+
+    // Stream graph: same scale — µStreamer capture-to-send latency is in a
+    // similar range to snapshot TTFB.  Adjust thresholds after observing live data.
+    const STREAM_GRAPH_OPTS = {
+      maxVal:  100,
+      ySteps:  [0, 25, 50, 75, 100],
       unit:    'ms',
       colorFn: v => v < 50 ? '#4ade80' : v < 100 ? '#fbbf24' : '#f87171',
     };
@@ -272,36 +300,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, W, H);
 
-      // Y-axis gridlines + labels
+      // Y-axis gridlines + labels (v=0 carries the unit suffix, e.g. "0ms")
       ctx.font = '9px monospace';
       ySteps.forEach(v => {
         const y = PT + iH * (1 - v / maxVal);
         ctx.strokeStyle = '#181818'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W - PR, y); ctx.stroke();
         ctx.fillStyle = '#3a3a3a'; ctx.textAlign = 'right';
-        ctx.fillText(`${v}`, PL - 3, y + 3);
+        ctx.fillText(v === 0 ? `0${unit}` : `${v}`, PL - 3, y + 3);
       });
-
-      // Unit label
-      ctx.fillStyle = '#2a2a2a'; ctx.textAlign = 'left';
-      ctx.fillText(unit, 2, PT + 8);
 
       // Y-axis spine
       ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PL, PT); ctx.lineTo(PL, PT + iH); ctx.stroke();
 
-      // Bars — fixed slot width, right-aligned
+      // Bars — fixed slot width, right-aligned; null = gap (no bar drawn)
       const barW   = iW / TOTAL_SLOTS;
       const xStart = PL + iW - values.length * barW;
       values.forEach((v, i) => {
+        if (v === null || v === undefined) return;
         const barH = Math.min(v / maxVal, 1) * iH;
         ctx.fillStyle = colorFn(v);
         ctx.fillRect(xStart + i * barW, PT + iH - barH, Math.max(barW, 0.5), barH);
       });
 
-      // Average line — dashed white with label on right
-      if (values.length > 0) {
-        const avg  = values.reduce((a, b) => a + b, 0) / values.length;
+      // Average line — dashed white with label on right (non-null values only)
+      const nonNull = values.filter(v => v !== null && v !== undefined);
+      if (nonNull.length > 0) {
+        const avg  = nonNull.reduce((a, b) => a + b, 0) / nonNull.length;
         const avgY = PT + iH * (1 - Math.min(avg / maxVal, 1));
         ctx.strokeStyle = 'rgba(224,224,224,0.55)';
         ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
@@ -385,7 +411,61 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
     }
 
-    // ── Capture table rendering ───────────────────────────────────────────
+    // ── Stream metrics polling (every 5 s) ───────────────────────────────
+    // Converts the API's timestamped slot list into a full TOTAL_SLOTS array
+    // where each index maps to a specific 5-second window ending at "now".
+    // Gaps (windows with no valid frames) remain null.
+    function buildTimestampedHistory(history, intervalSeconds) {
+      const result = new Array(TOTAL_SLOTS).fill(null);
+      if (!history.length) return result;
+      const now = Date.now() / 1000;
+      const windowStart = now - intervalSeconds * TOTAL_SLOTS;
+      history.forEach(slot => {
+        const idx = Math.floor((slot.timestamp - windowStart) / intervalSeconds);
+        if (idx >= 0 && idx < TOTAL_SLOTS) result[idx] = slot.median_ms;
+      });
+      return result;
+    }
+
+    const STATE_CLS = { live: 'g', starting: 'm', stale: 'w', offline: 'b', disconnected: 'b' };
+
+    async function pollStreamMetrics() {
+      let data;
+      try {
+        const r = await fetch(`${BASE}/api/v1/stream-metrics`);
+        if (!r.ok) throw new Error();
+        data = await r.json();
+      } catch { return; }
+
+      for (const id of CAMERAS) {
+        const cam = data.cameras?.[id];
+        if (!cam) continue;
+
+        const stateEl = document.getElementById(`stream-state-${id}`);
+        if (stateEl) {
+          stateEl.textContent = cam.state;
+          stateEl.className   = STATE_CLS[cam.state] ?? 'm';
+        }
+
+        const latEl = document.getElementById(`stream-lat-${id}`);
+        if (latEl) {
+          if (cam.latest) {
+            const ms = Math.round(cam.latest.median_ms);
+            latEl.textContent = `${ms} ms`;
+            latEl.className   = latCls(ms);
+          } else {
+            latEl.textContent = '—';
+            latEl.className   = 'm';
+          }
+        }
+
+        const hist = buildTimestampedHistory(cam.history, data.interval_seconds);
+        streamHist[id] = hist;
+        drawBarGraph(`graph-stream-${id}`, hist, STREAM_GRAPH_OPTS);
+      }
+    }
+
+    // ── Capture table rendering ────────────────────────────────────────────
     function renderCaptures(captures, camId) {
       const tbody = document.getElementById(`cap-body-${camId}`);
       if (!tbody) return;
@@ -415,7 +495,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
     }
 
-    // ── Poll captures (every 15 s) ────────────────────────────────────────
+    // ── Poll captures (every 15 s) ─────────────────────────────────────────
     async function pollCaptures() {
       let data;
       try {
@@ -434,9 +514,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     // ── Boot ─────────────────────────────────────────────────────────────
     pollStatus();
     pollCaptures();
+    pollStreamMetrics();
     Promise.all(CAMERAS.map(measureSnapshot));
 
     setInterval(() => Promise.all(CAMERAS.map(measureSnapshot)), 5_000);
+    setInterval(pollStreamMetrics, 5_000);
     setInterval(pollStatus,   30_000);
     setInterval(pollCaptures, 15_000);
 
@@ -445,7 +527,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         .addEventListener('change', pollCaptures));
 
     window.addEventListener('resize', () =>
-      CAMERAS.forEach(id => drawBarGraph(`graph-snap-${id}`, snapHist[id], SNAP_GRAPH_OPTS)));
+      CAMERAS.forEach(id => {
+        drawBarGraph(`graph-snap-${id}`,    snapHist[id],   SNAP_GRAPH_OPTS);
+        drawBarGraph(`graph-stream-${id}`,  streamHist[id], STREAM_GRAPH_OPTS);
+      }));
   </script>
 </body>
 </html>"""

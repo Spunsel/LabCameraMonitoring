@@ -21,10 +21,11 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from api.cameras import CameraSource, build_camera_registry
+from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
 from api.dashboard import DASHBOARD_HTML
 from api.settings import load_settings
+from api import stream_metrics
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -43,8 +44,17 @@ async def lifespan(app: FastAPI):
     _start_time = _time.monotonic()
     _cameras = build_camera_registry(settings)
     _store = CaptureStore(settings.storage.captures_dir)
+    # Start stream-latency collectors for µStreamer-backed cameras
+    ustreamer_urls = {
+        cam_id: src._base_url
+        for cam_id, src in _cameras.items()
+        if isinstance(src, UStreamerCameraSource)
+    }
+    if ustreamer_urls:
+        stream_metrics.start_collectors(ustreamer_urls)
     log.info("Camera service ready.  Cameras: %s", list(_cameras))
     yield
+    stream_metrics.stop_collectors()
     for src in _cameras.values():
         await src.close()
 
@@ -289,6 +299,13 @@ async def get_capture_image(event_id: str, camera_id: str) -> Response:
 
 
 # ── Monitoring endpoints ───────────────────────────────────────────────────────
+
+@app.get("/api/v1/stream-metrics", tags=["monitoring"])
+async def get_stream_metrics() -> dict[str, Any]:
+    """µStreamer per-frame capture-to-send latency (5-second slots, 30-minute history).
+    Reads in-memory data only — no camera requests triggered."""
+    return stream_metrics.get_metrics()
+
 
 @app.get("/api/v1/status", tags=["monitoring"])
 async def get_status() -> dict[str, Any]:
