@@ -11,16 +11,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time as _time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from api.cameras import CameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
+from api.dashboard import DASHBOARD_HTML
 from api.settings import load_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -31,11 +33,13 @@ log = logging.getLogger(__name__)
 settings = load_settings()
 _cameras: dict[str, CameraSource] = {}
 _store: CaptureStore | None = None
+_start_time: float = 0.0
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _cameras, _store
+    global _cameras, _store, _start_time
+    _start_time = _time.monotonic()
     _cameras = build_camera_registry(settings)
     _store = CaptureStore(settings.storage.captures_dir)
     log.info("Camera service ready.  Cameras: %s", list(_cameras))
@@ -163,7 +167,7 @@ async def get_stream(camera_id: str, fps: int = 10) -> StreamingResponse:
 
 class CaptureRequest(BaseModel):
     event_id: str
-    cameras: list[str] | None = None  # None = all configured cameras
+    cameras: list[str] | None = None
     store: bool = True
 
 
@@ -174,6 +178,19 @@ class CaptureResponse(BaseModel):
     errors: dict[str, str] = {}
 
 
+@app.get("/api/v1/captures", tags=["captures"])
+async def list_captures() -> list[str]:
+    """List stored capture event IDs, most recent first (max 20)."""
+    captures_dir = settings.storage.captures_dir
+    if not captures_dir.exists():
+        return []
+    ids = sorted(
+        (p.name for p in captures_dir.iterdir() if p.is_dir()),
+        reverse=True,
+    )
+    return ids[:20]
+
+
 @app.post(
     "/api/v1/captures",
     tags=["captures"],
@@ -182,7 +199,8 @@ class CaptureResponse(BaseModel):
 )
 async def create_capture(req: CaptureRequest) -> CaptureResponse:
     """Capture one or more cameras and (optionally) persist the images."""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
     result: CaptureResult = await _store.capture(
         event_id=req.event_id,
         cameras=_cameras,
@@ -206,7 +224,8 @@ async def create_capture(req: CaptureRequest) -> CaptureResponse:
 )
 async def get_capture(event_id: str) -> CaptureResponse:
     """Retrieve metadata for a previously stored capture."""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
     result = _store.get(event_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Capture {event_id!r} not found")
@@ -225,7 +244,8 @@ async def get_capture(event_id: str) -> CaptureResponse:
 )
 async def get_capture_image(event_id: str, camera_id: str) -> Response:
     """Return the stored JPEG for a specific camera in a capture event."""
-    assert _store is not None
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
     path = _store.image_path(event_id, camera_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -238,3 +258,30 @@ async def get_capture_image(event_id: str, camera_id: str) -> Response:
             "X-Event-Id": event_id,
         },
     )
+
+
+# ── Monitoring endpoints ───────────────────────────────────────────────────────
+
+@app.get("/api/v1/status", tags=["monitoring"])
+async def get_status() -> dict[str, Any]:
+    """Camera availability and config. Latency is measured client-side."""
+    camera_statuses: dict[str, Any] = {}
+    for cam_id, src in _cameras.items():
+        available = await src.is_available()
+        cfg = settings.cameras.get(cam_id)
+        camera_statuses[cam_id] = {
+            "available": available,
+            "resolution": f"{cfg.width}x{cfg.height}" if cfg else None,
+            "fps": cfg.fps if cfg else None,
+        }
+
+    return {
+        "uptime_seconds": round(_time.monotonic() - _start_time),
+        "cameras": camera_statuses,
+    }
+
+
+@app.get("/dashboard", response_class=HTMLResponse, tags=["monitoring"])
+async def dashboard() -> str:
+    """Live monitoring dashboard."""
+    return DASHBOARD_HTML

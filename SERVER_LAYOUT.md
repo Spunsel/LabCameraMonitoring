@@ -44,7 +44,9 @@ All files that make up the camera service on the lab server, grouped by location
 
 ---
 
-## Capture storage — `/var/lib/camera-service/captures/`
+## Capture storage — `~/camera-service/var/captures/`
+
+Created automatically by the app on startup (relative to the working directory).
 
 | Path | Content |
 |---|---|
@@ -125,7 +127,7 @@ CaptureStore.capture()         ~/camera-service/api/captures.py
   ├──► µStreamer :8101  →  whiteboard JPEG
   └──► µStreamer :8102  →  robot JPEG
   │
-  │  writes to /var/lib/camera-service/captures/{event_id}/
+  │  writes to ~/camera-service/var/captures/{event_id}/
   │    whiteboard.jpg
   │    robot.jpg
   │    metadata.json

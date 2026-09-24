@@ -16,7 +16,7 @@ lab.bpm.in.tum.de
 │
 └── FastAPI @127.0.0.1:8100     ← unified API
        │
-       └── Nginx (TLS + auth)   → https://lab.bpm.in.tum.de/camera-api/
+       └── Nginx (TLS + auth)   → https://lab.bpm.in.tum.de/cameras/
 ```
 
 CPEE on demo/coruscant calls the HTTPS API to trigger captures or retrieve
@@ -28,13 +28,17 @@ snapshots. Image data never passes through demo.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/healthz` | Process health |
+| `GET` | `/readyz` | Both cameras delivering frames |
 | `GET` | `/api/v1/cameras` | List cameras and current state |
 | `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Current JPEG snapshot |
 | `GET` | `/api/v1/cameras/{id}/stream.mjpeg` | Live MJPEG stream |
-| `POST` | `/api/v1/captures` | Capture one or both cameras |
+| `POST` | `/api/v1/captures` | Capture one or both cameras (CPEE) |
+| `GET` | `/api/v1/captures` | List stored capture event IDs (max 20) |
 | `GET` | `/api/v1/captures/{event_id}` | Capture metadata |
-| `GET` | `/healthz` | Process health |
-| `GET` | `/readyz` | Both cameras delivering frames |
+| `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Stored capture image |
+| `GET` | `/api/v1/status` | Camera availability, resolution, fps, uptime |
+| `GET` | `/dashboard` | Live monitoring dashboard |
 
 ### Snapshot response headers
 
@@ -120,7 +124,7 @@ api:
   port: 8100
 
 storage:
-  captures_dir: /var/lib/camera-service/captures
+  captures_dir: var/captures   # relative to ~/camera-service/ — created automatically
 ```
 
 ---
@@ -166,9 +170,8 @@ RESOLUTION=1280x720
 FPS=30
 EOF
 
-# 7. Create capture storage directory (on server)
-sudo mkdir -p /var/lib/camera-service/captures
-sudo chown lab:lab /var/lib/camera-service/captures
+# 7. (no action needed) Capture storage is created automatically at
+#    ~/camera-service/var/captures/ when camera-api first starts.
 
 # 8. Install and enable systemd units (on server)
 sudo cp deployment/systemd/*.service /etc/systemd/system/
@@ -222,7 +225,8 @@ camera-service/
 │   ├── main.py          # FastAPI app, routes, middleware
 │   ├── cameras.py       # Camera abstraction (Mock / V4L2-via-µStreamer)
 │   ├── captures.py      # Event capture logic and storage
-│   └── settings.py      # Pydantic-settings config loader
+│   ├── settings.py      # Pydantic-settings config loader
+│   └── dashboard.py     # Self-contained HTML/CSS/JS for /dashboard
 ├── config/
 │   ├── development.yaml          # Mock cameras – safe to commit
 │   └── production.example.yaml  # Template – commit; real file gitignored

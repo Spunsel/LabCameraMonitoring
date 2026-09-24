@@ -25,9 +25,9 @@ class CameraConfig(BaseModel):
     # v4l2 / µStreamer
     device: str | None = None     # /dev/v4l/by-id/…
     ustreamer_port: int | None = None  # overrides global default
-    width: int = 1920
-    height: int = 1080
-    fps: int = 15
+    width: int = 1280
+    height: int = 720
+    fps: int = 30
 
 
 # ── µStreamer defaults ────────────────────────────────────────────────────────

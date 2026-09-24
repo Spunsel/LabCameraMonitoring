@@ -8,10 +8,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- [x] `GET /api/v1/status` — returns per-camera availability, resolution, fps, and API uptime; latency is measured client-side
+- [x] `GET /api/v1/captures` — lists stored capture event IDs, most recent first (max 20)
+- [x] `GET /dashboard` — live monitoring dashboard at `https://lab.bpm.in.tum.de/cameras/dashboard`
+- [x] `api/dashboard.py` — self-contained HTML/CSS/JS dashboard
+
+### Fixed
+- [x] Replaced `assert _store is not None` (3×) with `HTTPException(503)` — asserts can be silently disabled with `python -O`
+
 ### Changed
-- `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
-- `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
-- `README.md`: updated config example to 1280×720 @ 30 fps
+- [x] `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
+- [x] `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
+- [x] `README.md`: updated config example to 1280×720 @ 30 fps
+- [x] Dashboard: latency measured client-side via `performance.now()` + snapshot fetch; frame size from `blob.size` — no extra server requests
+- [x] Dashboard: replaced block-char sparkline with canvas bar chart — fixed bar spacing (1 hr = 720 slots at 5 s/sample), bars right-aligned, color-coded green→yellow→red, Y-axis (0/20/40/60 ms), X-axis (−60m/−30m/now), 50 ms threshold line
+- [x] Dashboard: stats table and latency graph placed side-by-side below each stream
+- [x] Dashboard: status polled every 30 s (config rarely changes); latency measured every 5 s; captures polled every 15 s
 
 ---
 
