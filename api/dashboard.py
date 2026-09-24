@@ -24,6 +24,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       z-index: 100;
       background: #0d0d0d;
       display: flex;
+      align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid #1e1e1e;
       padding: 1.25rem 0 0.4rem;
@@ -46,6 +47,31 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       gap: 1.25rem;
       margin-bottom: 1.5rem;
     }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .tab-btn {
+      color: #555;
+      text-decoration: none;
+      padding: 0.3rem 0.9rem;
+      border: 1px solid #1e1e1e;
+      border-radius: 3px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: color 0.1s, border-color 0.1s, background 0.1s;
+    }
+    .tab-btn:hover  { color: #999; }
+    .tab-btn.active { color: #e0e0e0; border-color: #333; background: #151515; }
+
+    /* Panels stay in the DOM always — visibility toggles, nothing rebuilds */
+    .panel        { display: none; }
+    .panel.active { display: block; }
 
     .cam-lbl {
       display: flex;
@@ -68,19 +94,43 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
     .img-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    /* Stats table + graph side by side */
+    /* Stats (left) + graph (right) inside one bordered container, with an
+       explicit vertical divider between the two halves */
     .cam-bottom {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       margin-top: 0.5rem;
+      border: 1px solid #1e1e1e;
+      border-radius: 3px;
+      background: #0f0f0f;
+      padding: 0.6rem 0.75rem;
     }
-    .cam-stats {
-      flex-shrink: 0;
-      padding-right: 0.75rem;
-      border-right: 1px solid #1e1e1e;
-    }
-    .cam-graph { flex: 1; min-width: 0; padding-left: 0.75rem; }
+    .cam-stats   { flex-shrink: 0; }
+    .cam-divider { width: 1px; background: #1e1e1e; margin: 0 0.75rem; flex-shrink: 0; }
+    .cam-graph   { flex: 1; min-width: 0; }
     .cam-graph canvas { width: 100%; height: 80px; display: block; }
+
+    .cam-lbl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+    .cam-lbl-row .cam-lbl { margin-bottom: 0; }
+
+    .cap-btn {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      color: #888;
+      font-family: inherit;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: color 0.1s, border-color 0.1s;
+    }
+    .cap-btn:hover:not(:disabled) { color: #e0e0e0; border-color: #333; }
+    .cap-btn:disabled { opacity: 0.5; cursor: default; }
 
     .mt { border-collapse: collapse; }
     .mt td { padding: 0.05rem 0; vertical-align: baseline; }
@@ -161,17 +211,26 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   <div class="hdr">
     <span><span class="hdr-title">camera-service</span><span> @ lab.bpm.in.tum.de</span></span>
+    <div class="tabs">
+      <a href="#live"      class="tab-btn" data-tab="live">stream</a>
+      <a href="#snapshots" class="tab-btn" data-tab="snapshots">snapshots</a>
+      <a href="#history"   class="tab-btn" data-tab="history">history</a>
+    </div>
     <span id="uptime">—</span>
   </div>
 
-  <div class="section-lbl">stream</div>
-  <div class="grid" id="stream-grid"></div>
+  <div class="panel" id="panel-live">
+    <div class="grid" id="stream-grid"></div>
+  </div>
 
-  <div class="section-lbl">capture metrics</div>
-  <div class="grid" id="capture-grid"></div>
+  <div class="panel" id="panel-snapshots">
+    <div class="grid" id="capture-grid"></div>
+  </div>
 
-  <div class="section-lbl">recent captures</div>
-  <div class="grid" id="recent-grid"></div>
+  <div class="panel" id="panel-history">
+    <div class="section-lbl">stored capture history, newest first</div>
+    <div class="grid" id="recent-grid"></div>
+  </div>
 
   <script>
     const BASE    = '/cameras';
@@ -200,15 +259,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       d.innerHTML = `
         <div class="cam-lbl"><span class="dot" id="dot-${id}">●</span>${CAM_LABEL[id]}</div>
         <div class="img-box">
-          <img src="${BASE}/api/v1/cameras/${id}/stream.mjpeg" alt="${id}">
+          <img id="stream-img-${id}" data-src="${BASE}/api/v1/cameras/${id}/stream.mjpeg"
+               src="${BASE}/api/v1/cameras/${id}/stream.mjpeg" alt="${id}">
         </div>
-        <div class="cam-bottom" style="margin-top:0.5rem">
+        <div class="cam-bottom">
           <div class="cam-stats">
             <table class="mt">
-              <tr><td class="k">capture latency</td><td id="stream-lat-${id}" class="m">—</td></tr>
+              <tr><td class="k">capture-to-send latency</td><td id="stream-lat-${id}" class="m">—</td></tr>
               <tr><td class="k">stream status</td><td id="stream-state-${id}" class="m">—</td></tr>
             </table>
           </div>
+          <div class="cam-divider"></div>
           <div class="cam-graph">
             <canvas id="graph-stream-${id}"></canvas>
           </div>
@@ -225,15 +286,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       // ── Snapshot stats + graph ──
       const cs = document.createElement('div');
       cs.innerHTML = `
+        <div class="cam-lbl-row">
+          <div class="cam-lbl">${CAM_LABEL[id]}</div>
+          <button type="button" class="cap-btn" id="cap-btn-${id}">capture snapshot</button>
+        </div>
+        <div class="img-box">
+          <img id="snap-img-${id}" alt="${id} snapshot">
+        </div>
         <div class="cam-bottom">
           <div class="cam-stats">
             <table class="mt">
-              <tr><td class="k">snapshot latency</td><td id="snap-ttfb-${id}" class="m">—</td></tr>
+              <tr><td class="k">last refresh</td><td id="snap-refresh-${id}" class="m">—</td></tr>
+              <tr><td class="k">snapshot download time</td><td id="snap-ttfb-${id}" class="m">—</td></tr>
               <tr><td class="k">frame size</td><td id="snap-size-${id}">—</td></tr>
               <tr><td class="k">resolution</td><td id="snap-res-${id}">—</td></tr>
               <tr><td class="k">fps config</td><td id="snap-fps-${id}">—</td></tr>
             </table>
           </div>
+          <div class="cam-divider"></div>
           <div class="cam-graph">
             <canvas id="graph-snap-${id}"></canvas>
           </div>
@@ -264,18 +334,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     });
 
     // ── Bar chart ────────────────────────────────────────────────────────
+    // maxVal is a baseline ceiling only — drawBarGraph expands it in fixed
+    // 25 ms steps whenever the data exceeds it, so spikes are never clipped.
     const SNAP_GRAPH_OPTS = {
       maxVal:  100,
-      ySteps:  [0, 25, 50, 75, 100],
       unit:    'ms',
       colorFn: v => v < 50 ? '#4ade80' : v < 100 ? '#fbbf24' : '#f87171',
     };
 
-    // Stream graph: same scale — µStreamer capture-to-send latency is in a
-    // similar range to snapshot TTFB.  Adjust thresholds after observing live data.
+    // Stream graph: same baseline scale — µStreamer capture-to-send latency is
+    // in a similar range to snapshot download time, but the two are measured
+    // in different places and are not directly comparable.
     const STREAM_GRAPH_OPTS = {
       maxVal:  100,
-      ySteps:  [0, 25, 50, 75, 100],
       unit:    'ms',
       colorFn: v => v < 50 ? '#4ade80' : v < 100 ? '#fbbf24' : '#f87171',
     };
@@ -295,7 +366,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const W = rect.width, H = rect.height;
       const PL = 28, PR = 4, PT = 4, PB = 16;
       const iW = W - PL - PR, iH = H - PT - PB;
-      const { maxVal, ySteps, unit, colorFn } = opts;
+      const { unit, colorFn } = opts;
+
+      // Vertical scale: fixed 25-unit steps, expanding past opts.maxVal
+      // (the baseline ceiling) whenever the data itself goes higher, so
+      // slow requests are never clipped off the top of the chart.
+      const STEP = 25;
+      const dataMax = values.reduce(
+        (m, v) => (v !== null && v !== undefined && v > m) ? v : m, 0);
+      const maxVal = dataMax > opts.maxVal
+        ? Math.ceil(dataMax / STEP) * STEP
+        : opts.maxVal;
+      const ySteps = [];
+      for (let v = 0; v <= maxVal; v += STEP) ySteps.push(v);
 
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, W, H);
@@ -353,6 +436,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       return 'b';
     }
 
+    function median(arr) {
+      if (!arr.length) return null;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
     function fmtUptime(s) {
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
       return h > 0 ? `uptime ${h}h ${m}m` : `uptime ${m}m ${s % 60}s`;
@@ -366,26 +456,80 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
     }
 
-    // ── Snapshot TTFB measurement (every 5 s) ────────────────────────────
-    // await fetch() resolves at headers received = true TTFB.
-    // Server sends Cache-Control: no-store — no cache-buster needed.
+    function fmtTime(d) {
+      const z = n => String(n).padStart(2, '0');
+      return `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+    }
+
+    // ── Snapshot download time measurement (every 5 s) ───────────────────
+    // fetch() resolves at headers-received (first byte). We instead record
+    // the time until await r.blob() completes: how long the viewer's browser
+    // actually waits for the whole JPEG. That is what a human perceives, and
+    // what differs from the stream's capture-to-send latency above.
+    // firstByteMs is kept only for the tooltip, not graphed.
+    // Failed/invalid responses push null — a gap, never a fake 0 ms.
     async function measureSnapshot(id) {
       const t0 = performance.now();
-      let blob, ttfb;
+      let downloadMs = null, firstByteMs = null, blob = null;
       try {
-        const r = await fetch(`${BASE}/api/v1/cameras/${id}/snapshot.jpg`);
-        ttfb = Math.round(performance.now() - t0);
-        blob = await r.blob();
-      } catch { return; }
+        const r = await fetch(`${BASE}/api/v1/cameras/${id}/snapshot.jpg`, {
+          cache: 'no-store',
+        });
+        firstByteMs = performance.now() - t0;
 
-      snapHist[id].push(ttfb);
+        if (!r.ok || !r.headers.get('content-type')?.startsWith('image/jpeg')) {
+          throw new Error(`Snapshot failed: HTTP ${r.status}`);
+        }
+
+        blob = await r.blob();
+        if (!blob.size) throw new Error('Empty snapshot');
+
+        downloadMs = performance.now() - t0;
+      } catch {
+        downloadMs = null;
+      }
+
+      snapHist[id].push(downloadMs);
       if (snapHist[id].length > TOTAL_SLOTS) snapHist[id].shift();
 
+      // Big number = median of the last 5 *successful* samples — smooths
+      // display noise while every individual sample still shows as its own bar.
+      const last5   = snapHist[id].filter(v => v !== null).slice(-5);
+      const median5 = median(last5);
+
       const ttfbEl = document.getElementById(`snap-ttfb-${id}`);
-      if (ttfbEl) { ttfbEl.textContent = `${ttfb} ms`; ttfbEl.className = latCls(ttfb); }
+      if (ttfbEl) {
+        if (median5 !== null) {
+          const rounded = Math.round(median5);
+          ttfbEl.textContent = `${rounded} ms`;
+          ttfbEl.className   = latCls(rounded);
+          ttfbEl.title = firstByteMs !== null
+            ? `median of last 5 samples — latest: first byte ${Math.round(firstByteMs)} ms, full download ${downloadMs !== null ? Math.round(downloadMs) : '—'} ms`
+            : '';
+        } else {
+          ttfbEl.textContent = '—';
+          ttfbEl.className   = 'm';
+          ttfbEl.title = '';
+        }
+      }
 
       const szEl = document.getElementById(`snap-size-${id}`);
-      if (szEl) szEl.textContent = `${(blob.size / 1024).toFixed(1)} kB`;
+      if (szEl) szEl.textContent = blob ? `${(blob.size / 1024).toFixed(1)} kB` : '—';
+
+      // Still-image preview (Snapshots tab) — reuses this same blob, so the
+      // preview never triggers a second network request.
+      if (blob) {
+        const imgEl = document.getElementById(`snap-img-${id}`);
+        if (imgEl) {
+          const url = URL.createObjectURL(blob);
+          const old = imgEl.dataset.url;
+          imgEl.src = url;
+          imgEl.dataset.url = url;
+          if (old) URL.revokeObjectURL(old);
+        }
+        const refreshEl = document.getElementById(`snap-refresh-${id}`);
+        if (refreshEl) refreshEl.textContent = fmtTime(new Date());
+      }
 
       drawBarGraph(`graph-snap-${id}`, snapHist[id], SNAP_GRAPH_OPTS);
     }
@@ -480,8 +624,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         const sizeBytes = cap.images?.[camId] ?? 0;
         const sizeStr   = sizeBytes ? `${(sizeBytes / 1024).toFixed(1)} kB` : '—';
         const dlUrl     = `${BASE}/api/v1/captures/${cap.event_id}/${camId}.jpg`;
+        // Use the real on-disk filename (<camera>_<UTC-ts>.jpg) when available;
+        // legacy captures without a "filenames" entry fall back to a constructed name.
+        const dlName    = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
         const dlCol     = sizeBytes
-          ? `<a href="${dlUrl}" download="${camId}-${cap.event_id}.jpg" class="dl-btn" title="Download">${DL_SVG}</a>`
+          ? `<a href="${dlUrl}" download="${dlName}" class="dl-btn" title="Download">${DL_SVG}</a>`
           : `<span style="color:#222">—</span>`;
 
         const row = document.createElement('div');
@@ -511,20 +658,114 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
     }
 
+    // ── Manual "capture snapshot" button (Snapshots tab) ───────────────────
+    // Calls the same POST /api/v1/captures endpoint used by every other
+    // client (CPEE included) — the timestamped filename convention is
+    // applied server-side in api/captures.py, not here.
+    async function captureSnapshot(id) {
+      const btn = document.getElementById(`cap-btn-${id}`);
+      if (btn) { btn.disabled = true; btn.textContent = 'capturing…'; }
+      try {
+        const eventId = `manual-${id}-${Date.now()}`;
+        const r = await fetch(`${BASE}/api/v1/captures`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: eventId, cameras: [id], store: true }),
+        });
+        if (!r.ok) throw new Error(`Capture failed: HTTP ${r.status}`);
+        await pollCaptures();   // refresh the table immediately
+        if (btn) btn.textContent = 'captured ✓';
+      } catch (err) {
+        if (btn) btn.textContent = 'failed';
+        console.error(err);
+      } finally {
+        setTimeout(() => {
+          if (btn) { btn.disabled = false; btn.textContent = 'capture snapshot'; }
+        }, 1500);
+      }
+    }
+
+    // ── Tab switching (Live / Snapshots / History) ─────────────────────────
+    // All panels stay in the DOM the whole time — only visibility toggles.
+    // Chart history (snapHist/streamHist) and camera state live in module
+    // scope above and are never rebuilt when switching tabs.
+    let capturesInterval = null;
+
+    function normalizeTab(hash) {
+      if (hash === '#snapshots') return 'snapshots';
+      if (hash === '#history')   return 'history';
+      return 'live';
+    }
+
+    function startCapturesPolling() {
+      if (capturesInterval) return;
+      capturesInterval = setInterval(pollCaptures, 15_000);
+    }
+    function stopCapturesPolling() {
+      if (capturesInterval) { clearInterval(capturesInterval); capturesInterval = null; }
+    }
+
+    function showTab(tab) {
+      document.getElementById('panel-live').classList.toggle('active', tab === 'live');
+      document.getElementById('panel-snapshots').classList.toggle('active', tab === 'snapshots');
+      document.getElementById('panel-history').classList.toggle('active', tab === 'history');
+      document.querySelectorAll('.tab-btn').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.tab === tab));
+
+      if (tab === 'live') {
+        // Reconnect MJPEG streams
+        CAMERAS.forEach(id => {
+          const img = document.getElementById(`stream-img-${id}`);
+          if (img && !img.getAttribute('src')) img.src = img.dataset.src;
+        });
+        // Canvas had zero width while hidden — redraw now that it's visible
+        CAMERAS.forEach(id => drawBarGraph(`graph-stream-${id}`, streamHist[id], STREAM_GRAPH_OPTS));
+      } else {
+        // Disconnect MJPEG streams — a merely-hidden <img> would otherwise
+        // keep both stream connections open on the server indefinitely.
+        CAMERAS.forEach(id => {
+          const img = document.getElementById(`stream-img-${id}`);
+          if (img) img.removeAttribute('src');
+        });
+      }
+
+      if (tab === 'snapshots') {
+        // Canvas had zero width while hidden — redraw now that it's visible
+        CAMERAS.forEach(id => drawBarGraph(`graph-snap-${id}`, snapHist[id], SNAP_GRAPH_OPTS));
+      }
+
+      if (tab === 'history') {
+        pollCaptures();          // fetch immediately when opening History
+        startCapturesPolling();
+      } else {
+        stopCapturesPolling();   // only poll captures while History is visible
+      }
+    }
+
+    window.addEventListener('hashchange', () => showTab(normalizeTab(location.hash)));
+
     // ── Boot ─────────────────────────────────────────────────────────────
+    // Snapshot measurement and stream metrics run regardless of which tab is
+    // open, so switching tabs never creates a gap in either history.
     pollStatus();
-    pollCaptures();
     pollStreamMetrics();
     Promise.all(CAMERAS.map(measureSnapshot));
+    showTab(normalizeTab(location.hash));   // defaults to "live"; fetches
+                                             // captures too if URL is #history
 
     setInterval(() => Promise.all(CAMERAS.map(measureSnapshot)), 5_000);
     setInterval(pollStreamMetrics, 5_000);
     setInterval(pollStatus,   30_000);
-    setInterval(pollCaptures, 15_000);
+    // pollCaptures is started/stopped by showTab() — only polls while the
+    // History tab is actually visible.
 
     CAMERAS.forEach(id =>
       document.getElementById(`cap-limit-${id}`)
         .addEventListener('change', pollCaptures));
+
+    CAMERAS.forEach(id =>
+      document.getElementById(`cap-btn-${id}`)
+        .addEventListener('click', () => captureSnapshot(id)));
 
     window.addEventListener('resize', () =>
       CAMERAS.forEach(id => {

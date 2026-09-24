@@ -187,6 +187,7 @@ class CaptureResponse(BaseModel):
     event_id: str
     captured_at: str
     images: dict[str, str]
+    filenames: dict[str, str] = {}   # camera_id → on-disk filename (<camera_id>_<UTC-ts>.jpg)
     errors: dict[str, str] = {}
 
 
@@ -212,16 +213,22 @@ async def list_captures(
             "event_id": event_dir.name,
             "captured_at": None,
             "images": {},           # cam_id → file size in bytes
+            "filenames": {},        # cam_id → on-disk filename
         }
         meta_path = event_dir / "metadata.json"
         if meta_path.exists():
             try:
                 meta = _json.loads(meta_path.read_text())
                 item["captured_at"] = meta.get("captured_at")
+                filenames = meta.get("filenames", {})
                 for cam_id in meta.get("images", {}):
-                    img_path = event_dir / f"{cam_id}.jpg"
+                    # filenames holds the timestamped name; older captures
+                    # (written before that convention) fall back to {cam_id}.jpg
+                    filename = filenames.get(cam_id) or f"{cam_id}.jpg"
+                    img_path = event_dir / filename
                     if img_path.exists():
                         item["images"][cam_id] = img_path.stat().st_size
+                        item["filenames"][cam_id] = filename
             except Exception:
                 pass
         results.append(item)
@@ -251,6 +258,7 @@ async def create_capture(req: CaptureRequest) -> CaptureResponse:
         event_id=result.event_id,
         captured_at=result.captured_at,
         images=result.images,
+        filenames=result.filenames,
         errors=result.errors,
     )
 
@@ -271,6 +279,7 @@ async def get_capture(event_id: str) -> CaptureResponse:
         event_id=result.event_id,
         captured_at=result.captured_at,
         images=result.images,
+        filenames=result.filenames,
         errors=result.errors,
     )
 
