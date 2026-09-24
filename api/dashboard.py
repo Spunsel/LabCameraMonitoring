@@ -443,17 +443,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const iW = W - PL - PR, iH = H - PT - PB;
       const { unit, colorFn } = opts;
 
-      // Vertical scale: fixed 25-unit steps, expanding past opts.maxVal
-      // (the baseline ceiling) whenever the data itself goes higher, so
-      // slow requests are never clipped off the top of the chart.
-      const STEP = 25;
+      // Vertical scale: the ceiling still expands past opts.maxVal (the
+      // baseline) in 25-unit increments whenever the data goes higher, so
+      // slow requests are never clipped off the top of the chart. The label
+      // step then grows in lockstep (also in 25-unit multiples) so there are
+      // never more than MAX_LABELS gridlines/labels, no matter how tall the
+      // chart's ceiling ends up being.
+      const MAX_LABELS = 4;   // includes the "0${unit}" label at the bottom
       const dataMax = values.reduce(
         (m, v) => (v !== null && v !== undefined && v > m) ? v : m, 0);
-      const maxVal = dataMax > opts.maxVal
-        ? Math.ceil(dataMax / STEP) * STEP
+      const rawCeil = dataMax > opts.maxVal
+        ? Math.ceil(dataMax / 25) * 25
         : opts.maxVal;
+      let step = 25;
+      while (rawCeil / step > MAX_LABELS - 1) step += 25;
+      const maxVal = Math.ceil(rawCeil / step) * step;
       const ySteps = [];
-      for (let v = 0; v <= maxVal; v += STEP) ySteps.push(v);
+      for (let v = 0; v <= maxVal; v += step) ySteps.push(v);
 
       ctx.fillStyle = '#0d0d0d';
       ctx.fillRect(0, 0, W, H);
