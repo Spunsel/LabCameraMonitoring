@@ -178,7 +178,10 @@ async def get_stream(camera_id: str, fps: int = 10) -> StreamingResponse:
 # ── Capture endpoints ─────────────────────────────────────────────────────────
 
 class CaptureRequest(BaseModel):
-    event_id: str
+    event_id: str | None = None  # correlation key (e.g. CPEE process/activity id).
+    # Omit it for one-off/manual captures — CaptureStore auto-generates a
+    # timestamped id in that case; the real per-image filename is always
+    # returned in `filenames` regardless of what event_id ends up being.
     cameras: list[str] | None = None
     store: bool = True
 

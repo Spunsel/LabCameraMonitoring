@@ -16,22 +16,42 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       background: #0d0d0d;
       color: #c9c9c9;
       padding: 0 1.5rem 1.25rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     .hdr {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: #0d0d0d;
+      background: #161616;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #1e1e1e;
-      padding: 1.25rem 0 0.4rem;
-      margin-bottom: 1.25rem;
-      color: #555;
+      border-bottom: 1px solid #3a3a3a;
+      /* Negative side-margins cancel the body's own horizontal padding so
+         this bar's background bleeds edge-to-edge, clearly separating it
+         from the page content below instead of blending into it. */
+      margin: 0 -1.5rem 1.25rem;
+      padding: 1rem 1.5rem 0.85rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+      color: #999;
+      flex-shrink: 0;
     }
     .hdr-title { color: #e0e0e0; font-weight: bold; }
+
+    /* Three independent sections. Left/right each take an equal, flexible
+       share of the remaining width (flex: 1) while the tabs in the middle
+       stay a fixed, natural size (flex: 0 0 auto) — so the tabs sit at the
+       true center of the whole bar and never shift when the uptime text
+       (right section) grows or shrinks. */
+    .hdr-side {
+      flex: 1 1 0%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .hdr-right { justify-content: flex-end; }
 
     .section-lbl {
       color: #e0e0e0;
@@ -39,6 +59,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       letter-spacing: 0.08em;
       font-size: 13px;
       margin-bottom: 0.5rem;
+      flex-shrink: 0;
     }
 
     .grid {
@@ -51,27 +72,50 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       .grid { grid-template-columns: 1fr; }
     }
 
+    /* Recent-captures grid (History tab) — fills all remaining height below
+       the section label; grid-auto-rows: 1fr makes the single row (or two
+       stacked rows on narrow screens) stretch to that full height. */
+    #recent-grid {
+      flex: 1;
+      min-height: 0;
+      margin-bottom: 0;
+      grid-auto-rows: 1fr;
+    }
+
     .tabs {
       display: flex;
       gap: 0.5rem;
+      flex: 0 0 auto;
     }
     .tab-btn {
-      color: #555;
+      color: #e0e0e0;
+      font-weight: bold;
       text-decoration: none;
       padding: 0.3rem 0.9rem;
-      border: 1px solid #1e1e1e;
+      border: 1px solid #4a4a4a;
       border-radius: 3px;
+      background: #1c1c1c;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       transition: color 0.1s, border-color 0.1s, background 0.1s;
     }
-    .tab-btn:hover  { color: #999; }
-    .tab-btn.active { color: #e0e0e0; border-color: #333; background: #151515; }
+    .tab-btn:hover  { color: #fff; border-color: #666; background: #232323; }
+    .tab-btn.active { color: #fff; border-color: #888; background: #2a2a2a; }
 
     /* Panels stay in the DOM always — visibility toggles, nothing rebuilds */
     .panel        { display: none; }
     .panel.active { display: block; }
+
+    /* History tab grows to fill the remaining viewport height, so its
+       tables reach all the way to the bottom of the browser window
+       instead of being capped at a fixed pixel height. */
+    #panel-history.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
 
     .cam-lbl {
       display: flex;
@@ -89,7 +133,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       width: 100%;
       aspect-ratio: 16 / 9;
       background: #111;
-      border: 1px solid #1e1e1e;
+      border: 1px solid #444;
       overflow: hidden;
     }
     .img-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -100,13 +144,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       display: flex;
       align-items: stretch;
       margin-top: 0.5rem;
-      border: 1px solid #1e1e1e;
+      border: 1px solid #444;
       border-radius: 3px;
-      background: #0f0f0f;
+      background: #171717;
       padding: 0.6rem 0.75rem;
     }
     .cam-stats   { flex-shrink: 0; }
-    .cam-divider { width: 1px; background: #1e1e1e; margin: 0 0.75rem; flex-shrink: 0; }
+    .cam-divider { width: 1px; background: #444; margin: 0 0.75rem; flex-shrink: 0; }
     .cam-graph   { flex: 1; min-width: 0; }
     .cam-graph canvas { width: 100%; height: 80px; display: block; }
 
@@ -119,41 +163,51 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     .cam-lbl-row .cam-lbl { margin-bottom: 0; }
 
     .cap-btn {
-      background: #111;
-      border: 1px solid #1e1e1e;
-      color: #888;
+      background: #1c1c1c;
+      border: 1px solid #4a4a4a;
+      color: #e0e0e0;
       font-family: inherit;
       font-size: 11px;
+      font-weight: bold;
       padding: 3px 10px;
       border-radius: 3px;
       cursor: pointer;
-      transition: color 0.1s, border-color 0.1s;
+      transition: color 0.1s, border-color 0.1s, background 0.1s;
     }
-    .cap-btn:hover:not(:disabled) { color: #e0e0e0; border-color: #333; }
+    .cap-btn:hover:not(:disabled) { color: #fff; border-color: #777; background: #262626; }
     .cap-btn:disabled { opacity: 0.5; cursor: default; }
 
     .mt { border-collapse: collapse; }
     .mt td { padding: 0.05rem 0; vertical-align: baseline; }
-    .mt td.k { color: #555; padding-right: 0.6rem; white-space: nowrap; }
+    .mt td.k { color: #999; padding-right: 0.6rem; white-space: nowrap; }
 
     .g { color: #4ade80; }
     .w { color: #fbbf24; }
     .b { color: #f87171; }
-    .m { color: #555; }
+    .m { color: #999; }
 
     /* ── Capture tables ─────────────────────────────────────────────────── */
+
+    /* One flex column per camera — stretches to the full height of its
+       (stretched) grid cell so the table wrapper below can grow into it. */
+    .cap-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
     .cap-col-hdr {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 0.4rem;
+      flex-shrink: 0;
     }
-    .cap-limit-label { color: #444; font-size: 11px; }
+    .cap-limit-label { color: #888; font-size: 11px; }
     .cap-limit {
-      background: #111;
-      border: 1px solid #1e1e1e;
-      color: #888;
+      background: #1c1c1c;
+      border: 1px solid #4a4a4a;
+      color: #ccc;
       font-family: inherit;
       font-size: 11px;
       width: 38px;
@@ -163,14 +217,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
     .cap-limit::-webkit-inner-spin-button,
     .cap-limit::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .cap-limit:focus { outline: none; border-color: #333; color: #ccc; }
+    .cap-limit:focus { outline: none; border-color: #888; color: #fff; }
 
-    .cap-tbl-wrap { border: 1px solid #1a1a1a; }
+    /* Wrapper fills the rest of .cap-col; tbody grows inside it and scrolls
+       internally once its content exceeds the available height — this is
+       what makes the table reach all the way to the bottom of the window. */
+    .cap-tbl-wrap {
+      border: 1px solid #444;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
     .cap-thead, .cap-row { display: flex; align-items: center; }
-    .cap-thead { background: #111; border-bottom: 1px solid #1a1a1a; }
+    .cap-thead { background: #1c1c1c; border-bottom: 1px solid #444; flex-shrink: 0; }
     .cap-tbody {
-      max-height: 200px;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: #252525 #0d0d0d;
@@ -179,19 +243,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     .cap-tbody::-webkit-scrollbar-track { background: #0d0d0d; }
     .cap-tbody::-webkit-scrollbar-thumb { background: #1e1e1e; border-radius: 2px; }
 
-    .cap-row { border-bottom: 1px solid #131313; }
+    .cap-row { border-bottom: 1px solid #2a2a2a; }
     .cap-row:last-child { border-bottom: none; }
-    .cap-row:hover      { background: #111; }
+    .cap-row:hover      { background: #1a1a1a; }
     .cap-row.cap-empty  { justify-content: center; padding: 0.5rem; color: #2e2e2e; font-size: 12px; }
 
     .cc { padding: 0.22rem 0.5rem; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cc-name { flex: 1; min-width: 0; }
-    .cc-date { width: 145px; flex-shrink: 0; color: #555; }
-    .cc-size { width:  85px; flex-shrink: 0; color: #444; text-align: right; }
+    .cc-date { width: 145px; flex-shrink: 0; color: #999; }
+    .cc-size { width:  85px; flex-shrink: 0; color: #888; text-align: right; }
     .cc-dl   { width:  34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 
     .cap-thead .cc {
-      color: #323232;
+      color: #6e6e6e;
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -201,22 +265,32 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     .dl-btn {
       display: flex; align-items: center; justify-content: center;
-      color: #333; text-decoration: none; transition: color 0.1s;
+      width: 24px; height: 24px;
+      color: #e0e0e0;
+      background: #1c1c1c;
+      border: 1px solid #4a4a4a;
+      border-radius: 3px;
+      text-decoration: none;
+      transition: color 0.1s, border-color 0.1s, background 0.1s;
     }
-    .dl-btn:hover { color: #999; }
+    .dl-btn:hover { color: #fff; border-color: #777; background: #262626; }
     .dl-btn svg   { width: 13px; height: 13px; }
   </style>
 </head>
 <body>
 
   <div class="hdr">
-    <span><span class="hdr-title">camera-service</span><span> @ lab.bpm.in.tum.de</span></span>
+    <div class="hdr-side hdr-left">
+      <span><span class="hdr-title">camera-service</span><span> @ lab.bpm.in.tum.de</span></span>
+    </div>
     <div class="tabs">
       <a href="#live"      class="tab-btn" data-tab="live">stream</a>
       <a href="#snapshots" class="tab-btn" data-tab="snapshots">snapshots</a>
       <a href="#history"   class="tab-btn" data-tab="history">history</a>
     </div>
-    <span id="uptime">—</span>
+    <div class="hdr-side hdr-right">
+      <span id="uptime">—</span>
+    </div>
   </div>
 
   <div class="panel" id="panel-live">
@@ -228,7 +302,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="panel" id="panel-history">
-    <div class="section-lbl">stored capture history, newest first</div>
+    <div class="section-lbl">stored snapshot history, newest first</div>
     <div class="grid" id="recent-grid"></div>
   </div>
 
@@ -312,6 +386,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
       // ── Recent captures table ──
       const rt = document.createElement('div');
+      rt.className = 'cap-col';
       rt.innerHTML = `
         <div class="cap-col-hdr">
           <label class="cap-limit-label">show last
@@ -321,7 +396,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
         <div class="cap-tbl-wrap">
           <div class="cap-thead">
-            <div class="cc cc-name">event</div>
+            <div class="cc cc-name">file</div>
             <div class="cc cc-date">captured</div>
             <div class="cc cc-size">size</div>
             <div class="cc cc-dl"></div>
@@ -389,7 +464,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         const y = PT + iH * (1 - v / maxVal);
         ctx.strokeStyle = '#181818'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W - PR, y); ctx.stroke();
-        ctx.fillStyle = '#3a3a3a'; ctx.textAlign = 'right';
+        ctx.fillStyle = '#6e6e6e'; ctx.textAlign = 'right';
         ctx.fillText(v === 0 ? `0${unit}` : `${v}`, PL - 3, y + 3);
       });
 
@@ -422,7 +497,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
 
       // X-axis labels
-      ctx.fillStyle = '#303030'; ctx.font = '9px monospace';
+      ctx.fillStyle = '#666666'; ctx.font = '9px monospace';
       ctx.textAlign = 'left';   ctx.fillText('−30m', PL, H - 2);
       ctx.textAlign = 'center'; ctx.fillText('−15m', PL + iW / 2, H - 2);
       ctx.textAlign = 'right';  ctx.fillText('now',  W - PR, H - 2);
@@ -535,6 +610,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     }
 
     // ── Poll camera config + availability (every 30 s) ───────────────────
+    // Uptime ticks every second on the client by interpolating from the last
+    // server value — a single setInterval touching one text node is trivial
+    // overhead (<<1ms/tick), far cheaper than re-polling the server every
+    // second just to keep a counter moving smoothly.
+    let uptimeBaseSeconds = null;
+    let uptimeBaseAt      = null;   // performance.now() when uptimeBaseSeconds was received
+
+    function tickUptime() {
+      const el = document.getElementById('uptime');
+      if (!el || uptimeBaseSeconds === null) return;
+      const elapsed = (performance.now() - uptimeBaseAt) / 1000;
+      el.textContent = fmtUptime(Math.floor(uptimeBaseSeconds + elapsed));
+    }
+
     async function pollStatus() {
       let data;
       try {
@@ -545,7 +634,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         CAMERAS.forEach(id => document.getElementById(`dot-${id}`).className = 'dot off');
         return;
       }
-      document.getElementById('uptime').textContent = fmtUptime(data.uptime_seconds);
+      uptimeBaseSeconds = data.uptime_seconds;
+      uptimeBaseAt      = performance.now();
+      tickUptime();
       for (const [id, cam] of Object.entries(data.cameras)) {
         document.getElementById(`dot-${id}`).className = `dot ${cam.available ? 'on' : 'off'}`;
         const resEl = document.getElementById(`snap-res-${id}`);
@@ -626,15 +717,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         const dlUrl     = `${BASE}/api/v1/captures/${cap.event_id}/${camId}.jpg`;
         // Use the real on-disk filename (<camera>_<UTC-ts>.jpg) when available;
         // legacy captures without a "filenames" entry fall back to a constructed name.
-        const dlName    = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
+        const filename  = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
         const dlCol     = sizeBytes
-          ? `<a href="${dlUrl}" download="${dlName}" class="dl-btn" title="Download">${DL_SVG}</a>`
+          ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download">${DL_SVG}</a>`
           : `<span style="color:#222">—</span>`;
 
         const row = document.createElement('div');
         row.className = 'cap-row';
         row.innerHTML = `
-          <div class="cc cc-name" title="${cap.event_id}">${cap.event_id}</div>
+          <div class="cc cc-name" title="event: ${cap.event_id}">${filename}</div>
           <div class="cc cc-date">${fmtDate(cap.captured_at)}</div>
           <div class="cc cc-size">${sizeStr}</div>
           <div class="cc cc-dl">${dlCol}</div>`;
@@ -666,11 +757,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const btn = document.getElementById(`cap-btn-${id}`);
       if (btn) { btn.disabled = true; btn.textContent = 'capturing…'; }
       try {
-        const eventId = `manual-${id}-${Date.now()}`;
+        // event_id is omitted — the server auto-generates one for ad-hoc
+        // captures like this. Only real callers that need to correlate a
+        // capture back to something of their own (e.g. CPEE tying it to a
+        // process/activity) need to supply it explicitly.
         const r = await fetch(`${BASE}/api/v1/captures`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_id: eventId, cameras: [id], store: true }),
+          body: JSON.stringify({ cameras: [id], store: true }),
         });
         if (!r.ok) throw new Error(`Capture failed: HTTP ${r.status}`);
         await pollCaptures();   // refresh the table immediately
@@ -756,6 +850,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     setInterval(() => Promise.all(CAMERAS.map(measureSnapshot)), 5_000);
     setInterval(pollStreamMetrics, 5_000);
     setInterval(pollStatus,   30_000);
+    setInterval(tickUptime,   1_000);   // smooth per-second counter between polls
     // pollCaptures is started/stopped by showTab() — only polls while the
     // History tab is actually visible.
 

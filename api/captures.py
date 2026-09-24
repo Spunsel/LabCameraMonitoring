@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -59,6 +60,15 @@ def _timestamp_filename(camera_id: str, at: datetime) -> str:
     return f"{camera_id}_{ts}.jpg"
 
 
+def _generate_event_id(at: datetime) -> str:
+    """Fallback folder/correlation id for callers that don't supply one
+    (e.g. the dashboard's manual "capture snapshot" button). CPEE and other
+    real callers should keep passing their own meaningful event_id — this is
+    only a safe, collision-resistant default for ad-hoc captures."""
+    ts = at.strftime("%Y%m%dT%H%M%S") + f"{at.microsecond // 1000:03d}Z"
+    return f"capture-{ts}-{secrets.token_hex(2)}"
+
+
 # ── Store ─────────────────────────────────────────────────────────────────────
 
 class CaptureStore:
@@ -70,14 +80,24 @@ class CaptureStore:
 
     async def capture(
         self,
-        event_id: str,
+        event_id: str | None,
         cameras: dict[str, "CameraSource"],
         camera_ids: list[str] | None = None,
         store: bool = True,
     ) -> CaptureResult:
-        """Snapshot the requested cameras, optionally persist the images."""
+        """Snapshot the requested cameras, optionally persist the images.
+
+        event_id groups every camera captured in *this* call under one
+        folder + metadata.json, and lets a caller (CPEE) correlate the
+        result back to its own process/activity later via
+        GET /api/v1/captures/{event_id}. If omitted, a timestamped id is
+        generated automatically — the per-image filename (in `filenames`)
+        is what actually identifies each picture either way.
+        """
         now_dt = datetime.now(tz=timezone.utc)
         now = now_dt.isoformat(timespec="milliseconds")
+        if not event_id:
+            event_id = _generate_event_id(now_dt)
         ids_to_capture = camera_ids or list(cameras.keys())
 
         # Fetch all cameras concurrently
