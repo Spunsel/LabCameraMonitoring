@@ -47,7 +47,7 @@
         <h3>2 · Save the image and return a link</h3>
         <p>Put one camera ID in the URL and send an empty POST. The server saves one JPEG, generates an ID, and returns the complete image URL as plain text and in the <code>Location</code> response header.</p>
         <pre class="api-code"><code><span class="tok-method">POST</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/captures</span></code></pre>
-        <p>POST returns <code>201 Created</code>. The generated ID is part of the link, you can also use it with <code>GET /api/v1/captures/{event_id}</code> for metadata. An unknown camera returns <code>404</code>. Saved pictures are automatically deleted after 2 days. Cleanup runs at service startup and hourly and expired links then return <code>404</code>.</p>
+        <p>POST returns <code>201 Created</code>. The generated ID is part of the link; you can also use it with <code>GET /api/v1/captures/{event_id}</code> for metadata. An unknown camera returns <code>404</code>. Saved pictures become eligible for automatic deletion after 2 days. Cleanup runs at service startup and hourly; deleted images then return <code>404</code>.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{event_id}</span><span class="tok-path">/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">.jpg</span></code></pre>
       </section>
 
@@ -58,13 +58,11 @@
 
         <p>Alternatively, save the picture and print its link:</p>
         <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span></code></pre>
-        <p>Example response (the URL changes for every capture):</p>
-        <pre class="api-code"><code><span class="tok-key">HTTP/1.1</span> <span class="tok-method">201</span> <span class="tok-string">Created</span>
-<span class="tok-key">Content-Type</span>: <span class="tok-string">text/plain; charset=utf-8</span>
-<span class="tok-key">Location</span>: <span class="tok-string">https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg</span>
-
-<span class="tok-string">https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg</span></code></pre>
-        <p>To save a JPEG locally from the stored link:</p>
+        <p>Response body: a link to the saved JPEG (the ID changes for every capture):</p>
+        <pre class="api-code"><code><span class="tok-string"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg</span></code></pre>
+        <p>Send a GET request to that link to retrieve the saved JPEG without taking another snapshot:</p>
+        <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg</span></code></pre>
+        <p>GET returns <code>200 OK</code> and <code>image/jpeg</code>. To save your own capture locally:</p>
         <pre class="api-code"><code>saved_url=$(<span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span>)
 <span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">"$saved_url"</span> <span class="tok-flag">-o</span> whiteboard.jpg</code></pre>
       </section>
