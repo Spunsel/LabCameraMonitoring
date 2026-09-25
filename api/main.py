@@ -15,15 +15,16 @@ import logging
 import time as _time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Response
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
-from api.dashboard import DASHBOARD_HTML
 from api.settings import load_settings
 from api import stream_metrics
 
@@ -33,6 +34,7 @@ log = logging.getLogger(__name__)
 # ── Application state ─────────────────────────────────────────────────────────
 
 settings = load_settings()
+DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 _cameras: dict[str, CameraSource] = {}
 _store: CaptureStore | None = None
 _start_time: float = 0.0
@@ -64,6 +66,11 @@ app = FastAPI(
     description="BPM Lab camera gateway – whiteboard & robot StreamCams",
     version="0.1.0",
     lifespan=lifespan,
+)
+app.mount(
+    "/dashboard/assets",
+    StaticFiles(directory=DASHBOARD_DIR),
+    name="dashboard-assets",
 )
 
 
@@ -338,7 +345,7 @@ async def get_status() -> dict[str, Any]:
     }
 
 
-@app.get("/dashboard", response_class=HTMLResponse, tags=["monitoring"])
-async def dashboard() -> str:
+@app.get("/dashboard", response_class=FileResponse, tags=["monitoring"])
+async def dashboard() -> FileResponse:
     """Live monitoring dashboard."""
-    return DASHBOARD_HTML
+    return FileResponse(DASHBOARD_DIR / "index.html")

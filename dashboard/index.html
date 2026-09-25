@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>camera-service</title>
+  <link rel="stylesheet" href="dashboard/assets/styles.css">
+</head>
+<body>
+
+  <div class="hdr">
+    <div class="hdr-side hdr-left">
+      <span><span class="hdr-title">camera-service</span><span> @ lab.bpm.in.tum.de</span></span>
+    </div>
+    <div class="tabs">
+      <a href="#live"      class="tab-btn" data-tab="live">stream</a>
+      <a href="#snapshots" class="tab-btn" data-tab="snapshots">snapshots</a>
+      <a href="#history"   class="tab-btn" data-tab="history">history</a>
+    </div>
+    <div class="hdr-side hdr-right">
+      <span id="uptime">—</span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-live">
+    <div class="grid" id="stream-grid"></div>
+  </div>
+
+  <div class="panel" id="panel-snapshots">
+    <div class="grid" id="capture-grid"></div>
+  </div>
+
+  <div class="panel" id="panel-history">
+    <div class="section-lbl">stored snapshot history, newest first</div>
+    <div class="grid" id="recent-grid"></div>
+  </div>
+
+  <script src="dashboard/assets/app.js" defer></script>
+</body>
+</html>
