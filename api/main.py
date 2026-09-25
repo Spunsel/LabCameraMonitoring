@@ -69,7 +69,7 @@ app = FastAPI(
 )
 app.mount(
     "/dashboard/assets",
-    StaticFiles(directory=DASHBOARD_DIR),
+    StaticFiles(directory=DASHBOARD_DIR / "assets"),
     name="dashboard-assets",
 )
 

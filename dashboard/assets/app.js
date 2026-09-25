@@ -5,8 +5,7 @@ const CAM_LABEL = { whiteboard: 'whiteboard camera', robot: 'robot camera' };
 // 30 min at 5 s/sample = 360 slots
 const TOTAL_SLOTS = 360;
 
-// Download icon (stroke="currentColor" → styled via CSS)
-const DL_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none"><path d="M3,12.3v7a2,2,0,0,0,2,2H19a2,2,0,0,0,2-2v-7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><polyline points="7.9 12.3 12 16.3 16.1 12.3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/><line stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x1="12" x2="12" y1="2.7" y2="14.2"/></svg>`;
+const DL_ICON_URL = new URL('icons/download.svg', document.currentScript.src).href;
 
 // TTFB history per camera (snapshot graph)
 const snapHist = {};
@@ -32,6 +31,7 @@ CAMERAS.forEach(id => {
         <table class="mt">
           <tr><td class="k">capture-to-send latency</td><td id="stream-lat-${id}" class="m">—</td></tr>
           <tr><td class="k">stream status</td><td id="stream-state-${id}" class="m">—</td></tr>
+          <tr><td class="k">fps config</td><td id="stream-fps-${id}">—</td></tr>
         </table>
       </div>
       <div class="cam-divider"></div>
@@ -62,10 +62,9 @@ CAMERAS.forEach(id => {
       <div class="cam-stats">
         <table class="mt">
           <tr><td class="k">last refresh</td><td id="snap-refresh-${id}" class="m">—</td></tr>
-          <tr><td class="k">snapshot download time</td><td id="snap-ttfb-${id}" class="m">—</td></tr>
+          <tr><td class="k">download time</td><td id="snap-ttfb-${id}" class="m">—</td></tr>
           <tr><td class="k">frame size</td><td id="snap-size-${id}">—</td></tr>
           <tr><td class="k">resolution</td><td id="snap-res-${id}">—</td></tr>
-          <tr><td class="k">fps config</td><td id="snap-fps-${id}">—</td></tr>
         </table>
       </div>
       <div class="cam-divider"></div>
@@ -93,12 +92,34 @@ CAMERAS.forEach(id => {
         <div class="cc cc-size">size</div>
         <div class="cc cc-dl"></div>
       </div>
-      <div class="cap-tbody" id="cap-body-${id}">
+      <div class="cap-tbody" id="cap-body-${id}" tabindex="0"
+           role="region" aria-label="${CAM_LABEL[id]} capture history">
         <div class="cap-row cap-empty">loading…</div>
       </div>
     </div>`;
   rg.appendChild(rt);
 });
+
+function updateHistoryLayout() {
+  if (!document.getElementById('panel-history').classList.contains('active')) return;
+  // Check the actual two-column layout, including browser zoom, font metrics,
+  // and scrollbar space. Remove the stacked class before measuring so growing
+  // the window can return the tables to two columns.
+  rg.classList.remove('is-stacked');
+  document.body.classList.remove('history-stacked');
+  const clipped = [...rg.querySelectorAll('.cc-name')]
+    .some(cell => cell.scrollWidth > cell.clientWidth + 1);
+  rg.classList.toggle('is-stacked', clipped);
+  document.body.classList.toggle('history-stacked', clipped);
+
+  // A stacked table sizes itself to its rows, up to ten actual row heights.
+  // Measure the rendered height so font and browser zoom changes stay exact.
+  for (const id of CAMERAS) {
+    const body = document.getElementById(`cap-body-${id}`);
+    const row = body.querySelector('.cap-row:not(.cap-empty)');
+    if (row) body.style.setProperty('--history-ten-rows', `${row.getBoundingClientRect().height * 10}px`);
+  }
+}
 
 // ── Bar chart ────────────────────────────────────────────────────────
 // maxVal is a baseline ceiling only — drawBarGraph expands it in fixed
@@ -157,7 +178,7 @@ function drawBarGraph(canvasId, values, opts) {
   ctx.fillRect(0, 0, W, H);
 
   // Y-axis gridlines + labels (v=0 carries the unit suffix, e.g. "0ms")
-  ctx.font = '9px monospace';
+  ctx.font = '9px "Adwaita Mono", monospace';
   ySteps.forEach(v => {
     const y = PT + iH * (1 - v / maxVal);
     ctx.strokeStyle = '#181818'; ctx.lineWidth = 1;
@@ -190,12 +211,12 @@ function drawBarGraph(canvasId, values, opts) {
     ctx.beginPath(); ctx.moveTo(PL, avgY); ctx.lineTo(W - PR, avgY); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(224,224,224,0.7)'; ctx.textAlign = 'right';
-    ctx.font = '9px monospace';
+    ctx.font = '9px "Adwaita Mono", monospace';
     ctx.fillText(`${Math.round(avg)}${unit}`, W - PR, avgY < PT + 10 ? avgY + 10 : avgY - 2);
   }
 
   // X-axis labels
-  ctx.fillStyle = '#666666'; ctx.font = '9px monospace';
+  ctx.fillStyle = '#666666'; ctx.font = '9px "Adwaita Mono", monospace';
   ctx.textAlign = 'left';   ctx.fillText('−30m', PL, H - 2);
   ctx.textAlign = 'center'; ctx.fillText('−15m', PL + iW / 2, H - 2);
   ctx.textAlign = 'right';  ctx.fillText('now',  W - PR, H - 2);
@@ -338,7 +359,7 @@ async function pollStatus() {
   for (const [id, cam] of Object.entries(data.cameras)) {
     document.getElementById(`dot-${id}`).className = `dot ${cam.available ? 'on' : 'off'}`;
     const resEl = document.getElementById(`snap-res-${id}`);
-    const fpsEl = document.getElementById(`snap-fps-${id}`);
+    const fpsEl = document.getElementById(`stream-fps-${id}`);
     if (resEl) resEl.textContent = cam.resolution ?? '—';
     if (fpsEl) fpsEl.textContent = cam.fps != null ? `${cam.fps} fps` : '—';
   }
@@ -417,7 +438,7 @@ function renderCaptures(captures, camId) {
     // legacy captures without a "filenames" entry fall back to a constructed name.
     const filename  = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
     const dlCol     = sizeBytes
-      ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download">${DL_SVG}</a>`
+      ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download"><img src="${DL_ICON_URL}" alt=""></a>`
       : `<span style="color:#222">—</span>`;
 
     const row = document.createElement('div');
@@ -445,6 +466,7 @@ async function pollCaptures() {
       parseInt(document.getElementById(`cap-limit-${id}`).value, 10) || 10));
     renderCaptures(data.filter(c => c.images?.[id] != null).slice(0, limit), id);
   }
+  updateHistoryLayout();
 }
 
 // ── Manual "capture snapshot" button (Snapshots tab) ───────────────────
@@ -498,6 +520,8 @@ function stopCapturesPolling() {
 }
 
 function showTab(tab) {
+  document.body.classList.toggle('history-view', tab === 'history');
+  if (tab !== 'history') document.body.classList.remove('history-stacked');
   document.getElementById('panel-live').classList.toggle('active', tab === 'live');
   document.getElementById('panel-snapshots').classList.toggle('active', tab === 'snapshots');
   document.getElementById('panel-history').classList.toggle('active', tab === 'history');
@@ -527,6 +551,7 @@ function showTab(tab) {
   }
 
   if (tab === 'history') {
+    updateHistoryLayout();
     pollCaptures();          // fetch immediately when opening History
     startCapturesPolling();
   } else {
@@ -560,8 +585,20 @@ CAMERAS.forEach(id =>
   document.getElementById(`cap-btn-${id}`)
     .addEventListener('click', () => captureSnapshot(id)));
 
-window.addEventListener('resize', () =>
+window.addEventListener('resize', () => {
+  updateHistoryLayout();
   CAMERAS.forEach(id => {
     drawBarGraph(`graph-snap-${id}`,    snapHist[id],   SNAP_GRAPH_OPTS);
     drawBarGraph(`graph-stream-${id}`,  streamHist[id], STREAM_GRAPH_OPTS);
-  }));
+  });
+});
+
+// The downloaded font can change filename widths and canvas labels after
+// the first paint. Recheck the layout and redraw charts once it is ready.
+document.fonts.ready.then(() => {
+  updateHistoryLayout();
+  CAMERAS.forEach(id => {
+    drawBarGraph(`graph-snap-${id}`,    snapHist[id],   SNAP_GRAPH_OPTS);
+    drawBarGraph(`graph-stream-${id}`,  streamHist[id], STREAM_GRAPH_OPTS);
+  });
+});
