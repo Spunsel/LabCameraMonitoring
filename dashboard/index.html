@@ -34,20 +34,20 @@
   <div class="panel" id="panel-docs">
     <main class="api-docs" aria-labelledby="api-docs-title">
       <h1 id="api-docs-title">Snapshot REST API</h1>
-      <p>Take a picture from one camera. Receive the JPEG directly, or save it and receive a link.</p>
+      <p>Take a snapshot from one camera. Receive the JPEG directly, or save it and receive a link to the image.</p>
 
       <section class="api-docs-section" aria-labelledby="api-docs-how">
         <h2 id="api-docs-how">How it works</h2>
         <p>Use <code>whiteboard</code> or <code>robot</code> for <code>{camera_id}</code>. The API base is <code class="api-docs-base">https://lab.bpm.in.tum.de/cameras</code>.</p>
 
         <h3>1 · Return the image directly</h3>
-        <p>Each GET takes a fresh picture and returns <code>image/jpeg</code>. The image is not saved and has no History entry.</p>
+        <p>Each GET takes the current picture and returns <code>image/jpeg</code>. The image is not saved to the server and has no History entry.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/snapshot.jpg</span></code></pre>
 
         <h3>2 · Save the image and return a link</h3>
-        <p>Put one camera ID in the URL and send an empty POST. The server saves one JPEG, generates an ID, and returns the complete image URL as plain text and in the <code>Location</code> response header. No request body or <code>Content-Type</code> is needed. Send a separate POST to the other camera if you need another picture.</p>
+        <p>Put one camera ID in the URL and send an empty POST. The server saves one JPEG, generates an ID, and returns the complete image URL as plain text and in the <code>Location</code> response header.</p>
         <pre class="api-code"><code><span class="tok-method">POST</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/captures</span></code></pre>
-        <p>POST returns <code>201 Created</code>. The generated ID is part of the link; you can also use it with <code>GET /api/v1/captures/{event_id}</code> for metadata. A body on the POST returns <code>400</code>; an unknown camera returns <code>404</code>. Saved pictures become eligible for deletion after 48 hours. Cleanup runs at startup and hourly; expired links then return <code>404</code>.</p>
+        <p>POST returns <code>201 Created</code>. The generated ID is part of the link, you can also use it with <code>GET /api/v1/captures/{event_id}</code> for metadata. An unknown camera returns <code>404</code>. Saved pictures are automatically deleted after 2 days. Cleanup runs at service startup and hourly and expired links then return <code>404</code>.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{event_id}</span><span class="tok-path">/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">.jpg</span></code></pre>
       </section>
 
