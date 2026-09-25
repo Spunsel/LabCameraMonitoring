@@ -17,9 +17,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
-from fastapi import FastAPI, HTTPException, Query, Response
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -38,6 +39,19 @@ DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 _cameras: dict[str, CameraSource] = {}
 _store: CaptureStore | None = None
 _start_time: float = 0.0
+CAPTURE_CLEANUP_INTERVAL = 60 * 60  # seconds; prune on startup and hourly
+
+
+async def _capture_cleanup_loop(store: CaptureStore) -> None:
+    while True:
+        await asyncio.sleep(CAPTURE_CLEANUP_INTERVAL)
+        try:
+            removed_events, removed_images = store.prune_expired()
+            if removed_events or removed_images:
+                log.info("Pruned %d expired captures and %d old images",
+                         removed_events, removed_images)
+        except Exception:
+            log.exception("Could not prune expired captures")
 
 
 @asynccontextmanager
@@ -46,6 +60,13 @@ async def lifespan(app: FastAPI):
     _start_time = _time.monotonic()
     _cameras = build_camera_registry(settings)
     _store = CaptureStore(settings.storage.captures_dir)
+    try:
+        removed_events, removed_images = _store.prune_expired()
+        if removed_events or removed_images:
+            log.info("Pruned %d expired captures and %d old images",
+                     removed_events, removed_images)
+    except Exception:
+        log.exception("Could not prune expired captures at startup")
     # Start stream-latency collectors for µStreamer-backed cameras
     ustreamer_urls = {
         cam_id: src._base_url
@@ -55,10 +76,18 @@ async def lifespan(app: FastAPI):
     if ustreamer_urls:
         stream_metrics.start_collectors(ustreamer_urls)
     log.info("Camera service ready.  Cameras: %s", list(_cameras))
-    yield
-    stream_metrics.stop_collectors()
-    for src in _cameras.values():
-        await src.close()
+    cleanup_task = asyncio.create_task(_capture_cleanup_loop(_store))
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+        stream_metrics.stop_collectors()
+        for src in _cameras.values():
+            await src.close()
 
 
 app = FastAPI(
@@ -132,7 +161,11 @@ async def list_cameras() -> dict[str, Any]:
     response_class=Response,
 )
 async def get_snapshot(camera_id: str) -> Response:
-    """Return the latest JPEG snapshot for a camera."""
+    """Take a fresh snapshot and return JPEG bytes immediately (not stored).
+
+    Use this for the direct-image mode. For a saved image with a retrievable
+    link, POST to /api/v1/cameras/{camera_id}/captures instead.
+    """
     cam = _get_camera(camera_id)
     try:
         data = await cam.snapshot()
@@ -184,14 +217,6 @@ async def get_stream(camera_id: str, fps: int = 10) -> StreamingResponse:
 
 # ── Capture endpoints ─────────────────────────────────────────────────────────
 
-class CaptureRequest(BaseModel):
-    event_id: str | None = None  # correlation key (e.g. CPEE process/activity id).
-    # Omit it for one-off/manual captures — CaptureStore auto-generates a
-    # timestamped id in that case; the real per-image filename is always
-    # returned in `filenames` regardless of what event_id ends up being.
-    cameras: list[str] | None = None
-    store: bool = True
-
 
 class CaptureResponse(BaseModel):
     event_id: str
@@ -199,6 +224,13 @@ class CaptureResponse(BaseModel):
     images: dict[str, str]
     filenames: dict[str, str] = {}   # camera_id → on-disk filename (<camera_id>_<UTC-ts>.jpg)
     errors: dict[str, str] = {}
+
+
+def _public_capture_url(request: Request, image_path: str) -> str:
+    """Resolve an API image path against the public URL prefix when configured."""
+    public_base = settings.api.public_base_url
+    base = str(public_base) if public_base is not None else str(request.base_url)
+    return urljoin(base.rstrip("/") + "/", image_path.lstrip("/"))
 
 
 @app.get("/api/v1/captures", tags=["captures"])
@@ -247,29 +279,37 @@ async def list_captures(
 
 
 @app.post(
-    "/api/v1/captures",
+    "/api/v1/cameras/{camera_id}/captures",
     tags=["captures"],
-    response_model=CaptureResponse,
+    response_class=PlainTextResponse,
     status_code=201,
+    responses={
+        201: {"description": "Image URL in plain text and in the Location header",
+              "headers": {"Location": {"schema": {"type": "string", "format": "uri"}}}},
+    },
 )
-async def create_capture(req: CaptureRequest) -> CaptureResponse:
-    """Capture one or more cameras and (optionally) persist the images."""
+async def create_capture(camera_id: str, request: Request) -> PlainTextResponse:
+    """Save one snapshot; return its public URL as plain text and Location.
+
+    The POST has no request body. The server generates the event ID and
+    retains the JPEG for 48 hours. For immediate JPEG bytes without storage,
+    use GET /api/v1/cameras/{camera_id}/snapshot.jpg.
+    """
+    if await request.body():
+        raise HTTPException(status_code=400, detail="Capture POST does not accept a request body")
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
     result: CaptureResult = await _store.capture(
-        event_id=req.event_id,
-        cameras=_cameras,
-        camera_ids=req.cameras,
-        store=req.store,
+        camera_id=camera_id,
+        camera=_get_camera(camera_id),
     )
-    if not result.images and result.errors:
-        raise HTTPException(status_code=503, detail="All cameras failed to capture")
-    return CaptureResponse(
-        event_id=result.event_id,
-        captured_at=result.captured_at,
-        images=result.images,
-        filenames=result.filenames,
-        errors=result.errors,
+    if result.errors:
+        raise HTTPException(status_code=503, detail=f"Camera {camera_id!r} failed to capture")
+    image_url = _public_capture_url(request, result.images[camera_id])
+    return PlainTextResponse(
+        content=image_url + "\n",
+        status_code=201,
+        headers={"Location": image_url, "Cache-Control": "no-store"},
     )
 
 
@@ -300,7 +340,7 @@ async def get_capture(event_id: str) -> CaptureResponse:
     response_class=Response,
 )
 async def get_capture_image(event_id: str, camera_id: str) -> Response:
-    """Return the stored JPEG for a specific camera in a capture event."""
+    """Retrieve a saved JPEG. Expired captures return 404 after cleanup."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
     path = _store.image_path(event_id, camera_id)

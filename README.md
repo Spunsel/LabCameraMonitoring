@@ -31,14 +31,51 @@ snapshots. Image data never passes through demo.
 | `GET` | `/healthz` | Process health |
 | `GET` | `/readyz` | Both cameras delivering frames |
 | `GET` | `/api/v1/cameras` | List cameras and current state |
-| `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Current JPEG snapshot |
+| `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Fresh JPEG bytes in the response (not stored) |
 | `GET` | `/api/v1/cameras/{id}/stream.mjpeg` | Live MJPEG stream |
-| `POST` | `/api/v1/captures` | Capture one or both cameras (CPEE) |
+| `POST` | `/api/v1/cameras/{id}/captures` | Save one JPEG; return its full URL as plain text and in `Location` (no request body) |
 | `GET` | `/api/v1/captures` | List captures with metadata: event_id, date, file sizes. `?limit=N` (1–50, default 10) |
 | `GET` | `/api/v1/captures/{event_id}` | Capture metadata |
 | `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Stored capture image |
 | `GET` | `/api/v1/status` | Camera availability, resolution, fps, uptime |
 | `GET` | `/dashboard` | Live monitoring dashboard |
+| `GET` | `/dashboard/assets/{path}` | Dashboard CSS, JavaScript, font, and icon |
+
+### Snapshot REST API: image bytes or a saved link
+
+For an image **immediately in the response**, request either camera's snapshot
+endpoint. Each GET takes a fresh snapshot, returns `image/jpeg`, and does not
+save a capture in `var/captures`:
+
+```bash
+curl -fsS 'https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/snapshot.jpg' -o whiteboard.jpg
+```
+
+For an image **saved on the server with a link**, POST to the selected camera's
+captures endpoint. The request has no body or `Content-Type` header:
+
+```bash
+curl -fsS -X POST 'https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/captures'
+```
+
+Each POST captures only the camera named in its URL. To capture the robot,
+send a separate POST to `/api/v1/cameras/robot/captures`. The server generates
+a distinct event ID for every saved JPEG. The old collection POST route is
+removed; passing a request body returns `400`, and an unknown camera returns
+`404`.
+
+The `201 Created` response prints the complete image URL as `text/plain` and
+also returns it in the `Location` header. `GET` on that URL returns the stored
+JPEG. The dashboard History tab lists these saved captures. To ensure the
+returned link includes Nginx's `/cameras` prefix, set
+`api.public_base_url: "https://lab.bpm.in.tum.de/cameras"` in
+`config/production.yaml`. If unset, local development uses the request URL.
+
+Stored capture folders and any older orphaned JPEGs become eligible for
+deletion after 48 hours. Cleanup runs at startup and hourly while the API is
+running, so removal can happen up to one hour after expiry. Links return `404`
+after deletion. The direct JPEG mode creates no stored capture. See
+[`USAGE.md`](USAGE.md) for a complete two-request example.
 
 ### Snapshot response headers
 
@@ -51,25 +88,17 @@ X-Captured-At: 2026-09-18T14:30:12.420Z
 
 ### Capture request (CPEE)
 
-```json
-{
-  "event_id": "process-4711-activity-8",
-  "cameras": ["whiteboard", "robot"],
-  "store": true
-}
-```
+`POST /api/v1/cameras/whiteboard/captures` with an empty request body.
+The camera is selected by the URL, and the server chooses the event ID.
 
 ### Capture response
 
-```json
-{
-  "event_id": "process-4711-activity-8",
-  "captured_at": "2026-09-18T14:30:12.420Z",
-  "images": {
-    "whiteboard": "/api/v1/captures/process-4711-activity-8/whiteboard.jpg",
-    "robot":      "/api/v1/captures/process-4711-activity-8/robot.jpg"
-  }
-}
+```http
+HTTP/1.1 201 Created
+Content-Type: text/plain; charset=utf-8
+Location: https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg
+
+https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg
 ```
 
 ---
@@ -122,6 +151,8 @@ ustreamer:
 
 api:
   port: 8100
+  # Set in production.yaml so saved image links include the /cameras prefix:
+  # public_base_url: "https://lab.bpm.in.tum.de/cameras"
 
 storage:
   captures_dir: var/captures   # relative to ~/camera-service/ — created automatically
@@ -205,6 +236,7 @@ After running `rsync-lab`, SSH into the server and run only what changed:
 | What changed | Commands on lab |
 |---|---|
 | `api/*.py` | `sudo systemctl restart camera-api` |
+| `dashboard/*` | Refresh the browser; when first switching from `api/dashboard.py`, also restart `camera-api` after deploying `api/main.py` |
 | `deployment/nginx/camera-api.conf` | `sudo cp ~/camera-service/deployment/nginx/camera-api.conf /etc/nginx/cpee.d/locations.d/camera && sudo nginx -t && sudo systemctl reload nginx` |
 | `deployment/systemd/*.service` | `sudo cp ~/camera-service/deployment/systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart camera-api camera-capture@whiteboard camera-capture@robot` |
 
@@ -226,7 +258,16 @@ camera-service/
 │   ├── cameras.py       # Camera abstraction (Mock / V4L2-via-µStreamer)
 │   ├── captures.py      # Event capture logic and storage
 │   ├── settings.py      # Pydantic-settings config loader
-│   └── dashboard.py     # Self-contained HTML/CSS/JS for /dashboard
+│   └── stream_metrics.py
+├── dashboard/
+│   ├── index.html       # Dashboard page served at /dashboard
+│   └── assets/
+│       ├── styles.css   # Layout and responsive History tables
+│       ├── app.js       # Streams, snapshots, charts, and history
+│       ├── fonts/
+│       │   └── adwaita-mono-regular.ttf
+│       └── icons/
+│           └── download.svg
 ├── config/
 │   ├── development.yaml          # Mock cameras – safe to commit
 │   └── production.example.yaml  # Template – commit; real file gitignored
@@ -249,5 +290,3 @@ camera-service/
 ├── SERVER_LAYOUT.md
 └── README.md
 ```
-
-

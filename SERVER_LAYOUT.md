@@ -10,10 +10,14 @@ All files that make up the camera service on the lab server, grouped by location
 |---|---|
 | `api/main.py` | FastAPI app. Defines all HTTP routes, lifespan startup/shutdown, error handling. |
 | `api/cameras.py` | Camera abstraction. `MockCameraSource` for local dev; `UStreamerCameraSource` fetches JPEG frames from a µStreamer process over HTTP. |
-| `api/captures.py` | Event capture logic. Snapshots both cameras concurrently, saves JPEGs to disk, writes a `metadata.json` side-car. |
+| `api/captures.py` | Event capture logic. Saves one selected camera's JPEG per request with a `metadata.json` side-car. |
 | `api/settings.py` | Config loader. Reads `production.yaml` (or `development.yaml` locally) via Pydantic and exposes a typed `Settings` object. |
-| `api/dashboard.py` | Self-contained HTML/CSS/JS served at `GET /dashboard`. No external dependencies — entire page is one Python string constant. |
-| `config/production.yaml` | **Active config** (gitignored). Contains real device paths, ports, and capture storage path. |
+| `dashboard/index.html` | Dashboard page served at `GET /dashboard` by FastAPI. |
+| `dashboard/assets/styles.css` | Dashboard layout and Adwaita Mono font definition. Served at `GET /dashboard/assets/styles.css`. |
+| `dashboard/assets/app.js` | Dashboard behavior, polling, and charts. Served at `GET /dashboard/assets/app.js`. |
+| `dashboard/assets/fonts/adwaita-mono-regular.ttf` | Self-hosted font used throughout the dashboard. |
+| `dashboard/assets/icons/download.svg` | Download icon for History captures. |
+| `config/production.yaml` | **Active config** (gitignored). Contains real device paths, ports, storage, and `api.public_base_url` for public image links. |
 | `.venv/` | Python virtual environment. All dependencies installed here via `pip`. |
 | `requirements.txt` | Pinned Python dependencies (`fastapi`, `uvicorn`, `httpx`, `pydantic`, …). |
 
@@ -45,15 +49,15 @@ All files that make up the camera service on the lab server, grouped by location
 
 ---
 
-## Capture storage — `~/camera-service/var/captures/`
+## Capture storage — `storage.captures_dir`
 
-Created automatically by the app on startup (relative to the working directory).
+Created automatically by the app on startup. The production template uses
+`/var/lib/camera-service/captures`; the path can be changed in the active config.
 
 | Path | Content |
 |---|---|
-| `{event_id}/whiteboard.jpg` | Captured JPEG from the whiteboard camera. |
-| `{event_id}/robot.jpg` | Captured JPEG from the robot camera. |
-| `{event_id}/metadata.json` | Capture timestamp, image URLs, and any per-camera errors. |
+| `{event_id}/{camera_id}_YYYYMMDDTHHMMSSmmmZ.jpg` | One timestamped JPEG from the selected camera. |
+| `{event_id}/metadata.json` | Capture timestamp, selected image URL, and any camera error. |
 
 ---
 
@@ -114,27 +118,30 @@ FastAPI is **not involved** for streams. Nginx proxies directly to µStreamer.
 
 ---
 
-### Event capture (`POST /cameras/api/v1/captures`)
+### Event capture (`POST /cameras/api/v1/cameras/whiteboard/captures`)
 
 ```
 Client (CPEE or curl)
   │
-  │  HTTPS POST  {"event_id": "...", "cameras": ["whiteboard", "robot"]}
+  │  HTTPS POST (empty body)
   ▼
 Nginx  →  FastAPI (port 8100)
   ▼
 CaptureStore.capture()         ~/camera-service/api/captures.py
-  │  fires two concurrent snapshot tasks
-  ├──► µStreamer :8101  →  whiteboard JPEG
-  └──► µStreamer :8102  →  robot JPEG
+  │  requests one selected camera
+  └──► µStreamer :8101  →  whiteboard JPEG
   │
-  │  writes to ~/camera-service/var/captures/{event_id}/
-  │    whiteboard.jpg
-  │    robot.jpg
+  │  writes to configured captures_dir/{generated_event_id}/
+  │    whiteboard_<UTC timestamp>.jpg
   │    metadata.json
   ▼
-Client receives 201 + image URLs
+Client receives 201 + complete image URL in plain text and Location
 ```
+
+To capture the robot, make a separate POST to
+`/cameras/api/v1/cameras/robot/captures`. The server generates its ID.
+`api.public_base_url` in production config supplies the external `/cameras`
+prefix on the returned image URL.
 
 ---
 

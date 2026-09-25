@@ -6,6 +6,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Adwaita Sans';
+  src: url('fonts/adwaita-sans-regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -128,10 +136,53 @@ body.history-view.history-stacked { height: auto; }
   min-height: 0;
 }
 
+/* One-column REST guide. Color spans highlight static HTTP, shell, and JSON
+   examples without fetching a syntax-highlighting library from a CDN. */
+.api-docs { width: 100%; max-width: 56rem; min-width: 0; margin: 0 auto 1.5rem; font-family: 'Adwaita Sans', sans-serif; }
+.api-docs h1 { color: #e0e0e0; font-size: 19px; line-height: 1.4; margin-bottom: 0.5rem; }
+.api-docs h2 { color: #e0e0e0; font-size: 14px; }
+.api-docs h3 { color: #ddd; font-size: 12px; margin-top: 1.3rem; }
+.api-docs p { color: #aaa; margin: 0.5rem 0 0.85rem; }
+.api-docs code { font-family: 'Adwaita Mono', monospace; }
+.api-docs p code { color: #ddd; overflow-wrap: anywhere; }
+.api-docs-section {
+  min-width: 0;
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #444;
+  background: #171717;
+}
+.api-code {
+  max-width: 100%;
+  margin: 0.7rem 0 1rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid #333;
+  background: #101010;
+  font-family: 'Adwaita Mono', monospace;
+  font-size: inherit;
+  line-height: 1.5;
+}
+.api-code code { color: #cbd5e1; }
+.api-code .tok-method { color: #87bfff; }
+.api-code .tok-path { color: #b6c9d9; }
+.api-code .tok-placeholder { color: #f2c778; }
+.api-code .tok-command { color: #85d5b3; }
+.api-code .tok-flag { color: #d7bd8f; }
+.api-code .tok-string { color: #e4ae83; }
+.api-code .tok-key { color: #c4abed; }
+
+@media (max-width: 720px) {
+  .hdr { flex-wrap: wrap; row-gap: 0.5rem; }
+  .tabs { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
+  .api-docs-section { padding: 0.8rem; }
+}
+
 .cam-lbl {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  font-family: 'Adwaita Sans', sans-serif;
   color: #e0e0e0;
   font-weight: bold;
   margin-bottom: 0.4rem;
@@ -177,7 +228,7 @@ body.history-view.history-stacked { height: auto; }
   background: #1c1c1c;
   border: 1px solid #4a4a4a;
   color: #e0e0e0;
-  font-family: inherit;
+  font-family: 'Adwaita Sans', sans-serif;
   font-size: 11px;
   font-weight: bold;
   padding: 3px 10px;
@@ -216,7 +267,7 @@ body.history-view.history-stacked { height: auto; }
   flex-shrink: 0;
 }
 .cap-col-hdr .cam-lbl { margin-bottom: 0; }
-.cap-limit-label { color: #888; font-size: 11px; }
+.cap-limit-label { color: #888; font-size: 11px; font-family: 'Adwaita Sans', sans-serif; }
 .cap-limit {
   background: #1c1c1c;
   border: 1px solid #4a4a4a;
@@ -268,6 +319,10 @@ body.history-view.history-stacked { height: auto; }
 .cc-date { width: 145px; flex-shrink: 0; color: #999; }
 .cc-size { width:  85px; flex-shrink: 0; color: #888; text-align: right; }
 .cc-dl   { width:  40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+.cap-tbody .cc-name,
+.cap-tbody .cc-date,
+.cap-tbody .cc-size { font-family: 'Adwaita Sans', sans-serif; }
 
 .cap-thead .cc {
   color: #6e6e6e;

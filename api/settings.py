@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
@@ -43,6 +43,8 @@ class UStreamerConfig(BaseModel):
 class ApiConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8100
+    # Public URL prefix used for saved image links; if unset, use the request URL.
+    public_base_url: AnyHttpUrl | None = None
 
 
 # ── Storage config ────────────────────────────────────────────────────────────

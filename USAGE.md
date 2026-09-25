@@ -15,41 +15,70 @@ below. Check those first — this file only has what's *not* already there.
 
 ## 1 · Manually triggering a capture
 
-This is exactly what the dashboard's **capture snapshot** button does under
-the hood (`POST /api/v1/captures`) — handy for testing without opening a
-browser.
+There are two ways to take a snapshot through the REST API. Replace
+`whiteboard` with `robot` in either example to use the other camera.
 
-**Both cameras at once** (omit `"cameras"` to capture everything):
+**Mode 1 — take a picture and return its JPEG immediately (no disk storage):**
+
 ```bash
-curl -sS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/captures \
-  -H "Content-Type: application/json" \
-  -d '{"event_id": "manual-test-1", "store": true}' \
-  | python3 -m json.tool
+curl -fsS 'https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/snapshot.jpg' \
+  -o whiteboard.jpg
 ```
 
-**A single camera:**
+The response is `image/jpeg`, not JSON. Every request takes a new picture;
+there is no stored link or History entry for this mode.
+
+**Mode 2 — take a picture, save it, and return a link:**
+
 ```bash
-curl -sS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/captures \
-  -H "Content-Type: application/json" \
-  -d '{"event_id": "manual-test-2", "cameras": ["whiteboard"], "store": true}' \
-  | python3 -m json.tool
+saved_url=$(curl -fsS -X POST \
+  'https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/captures')
+printf '%s\n' "$saved_url"
+curl -fsS "$saved_url" -o whiteboard.jpg
+```
+
+The bodyless POST returns `201 Created`. Its `text/plain` body contains the
+complete stored JPEG URL; the same URL appears in the `Location` response
+header. Configure `api.public_base_url` in `config/production.yaml` as
+`https://lab.bpm.in.tum.de/cameras` so the URL works through Nginx. If unset,
+the URL uses the incoming request address (useful for local development).
+
+Stored captures become eligible for removal after 48 hours. Cleanup runs at
+startup and hourly, so a link can remain valid for up to one more hour; it
+returns `404` after deletion. POST always saves one selected image; use Mode 1
+when you want the JPEG directly in the response.
+
+The dashboard's **capture snapshot** button uses Mode 2. Select one camera
+in the URL for each POST. The server generates each event ID; store the
+returned URL alongside your CPEE activity if you need a correlation key.
+
+**Whiteboard:**
+```bash
+curl -fsS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/captures
+```
+
+**Robot (another request and generated event ID):**
+```bash
+curl -fsS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/cameras/robot/captures
 ```
 
 **Directly on the lab server** (skips Nginx/TLS):
 ```bash
-curl -sS -X POST http://127.0.0.1:8100/api/v1/captures \
-  -H "Content-Type: application/json" \
-  -d '{"event_id": "manual-test-3", "store": true}' \
-  | python3 -m json.tool
+curl -fsS -X POST http://127.0.0.1:8100/api/v1/cameras/whiteboard/captures
 ```
 
-The response includes `filenames` — the real on-disk name for each camera
-(`<camera>_YYYYMMDDTHHMMSSmmmZ.jpg`, UTC, millisecond precision). Confirm it
-landed on disk:
+The previous `POST /api/v1/captures` route has been removed. Including
+any request body, including the former JSON selector, returns `400`.
+
+To confirm the capture on disk, derive its generated event ID from the saved
+URL. The JPEG filename follows `<camera>_YYYYMMDDTHHMMSSmmmZ.jpg` (UTC):
 ```bash
-# On lab, after running one of the above:
-ls -la ~/camera-service/var/captures/manual-test-1/
-cat  ~/camera-service/var/captures/manual-test-1/metadata.json | python3 -m json.tool
+# On lab, after running the Mode 2 example above:
+capture_event_id=$(basename "$(dirname "$saved_url")")
+# Set this to storage.captures_dir from your active config:
+capture_storage_dir=/var/lib/camera-service/captures
+ls -la "$capture_storage_dir/$capture_event_id"/
+cat "$capture_storage_dir/$capture_event_id"/metadata.json | python3 -m json.tool
 ```
 
 ---
@@ -171,21 +200,27 @@ https://lab.bpm.in.tum.de/cameras/dashboard#history      # History (recent captu
 
 ---
 
-## 6 · Verifying `api/dashboard.py` edits before deploying
+## 6 · Verifying dashboard edits before deploying
 
-`api/dashboard.py` is one large Python string containing HTML/CSS/JS with no
-build step or linter of its own, so a quick sanity pass before every
-`rsync-lab` catches typos that would otherwise only surface in the browser:
+The page lives in `dashboard/index.html`, with CSS, JavaScript, the font, and
+the download icon in `dashboard/assets/`. The API serves them from `/dashboard` and `/dashboard/assets/`. There is
+no build step. Before `rsync-lab`, check the JavaScript and Python syntax:
 
 ```bash
-.venv/bin/python -c "
-from api.dashboard import DASHBOARD_HTML as h
-script = h.split('<script>')[1].split('</script>')[0]
-assert script.count('{') == script.count('}'), 'brace mismatch'
-assert script.count('(') == script.count(')'), 'paren mismatch'
-print('brace/paren balance OK')
-"
+node --check dashboard/assets/app.js
+.venv/bin/python -m py_compile api/main.py
 
-# Confirm the whole app still imports cleanly (catches Python-side breakage too)
 .venv/bin/python -c "from api.main import app; print('app builds OK')"
+
+# After starting/restarting the API, confirm all three files are reachable.
+curl -fsS http://127.0.0.1:8100/dashboard | grep -q 'dashboard/assets/app.js'
+curl -fsS http://127.0.0.1:8100/dashboard/assets/styles.css | grep -q '#recent-grid'
+curl -fsS http://127.0.0.1:8100/dashboard/assets/app.js | grep -q 'const CAMERAS'
+curl -fsSI http://127.0.0.1:8100/dashboard/assets/fonts/adwaita-mono-regular.ttf
+curl -fsS http://127.0.0.1:8100/dashboard/assets/icons/download.svg | grep -q '<svg'
 ```
+
+When deploying this split for the first time, copy the `dashboard/` folder and
+the updated `api/main.py` together, remove the old `api/dashboard.py`, then
+restart `camera-api`. Check `/cameras/dashboard` through Nginx afterward;
+the public `/cameras/dashboard/assets/` paths must reach FastAPI too.

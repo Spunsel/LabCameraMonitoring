@@ -8,10 +8,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Capture API migration
+- [x] Capture creation uses a bodyless `POST /api/v1/cameras/{camera_id}/captures`. One camera is selected by the URL; each POST saves one JPEG with a generated event ID and returns the complete image URL as plain text and in `Location`.
+- [x] Removed the old `POST /api/v1/captures` route, JSON capture request, caller-supplied event ID, and JSON POST response. `GET /api/v1/captures` still lists images and metadata.
+- [x] Added `api.public_base_url` to configure the public Nginx prefix in returned image links. Updated the dashboard button, Docs tab, and API examples.
+
 ### Added
 - [x] `GET /api/v1/status` — returns per-camera availability, resolution, fps, and API uptime; latency is measured client-side
 - [x] `GET /dashboard` — live monitoring dashboard at `https://lab.bpm.in.tum.de/cameras/dashboard`
-- [x] `api/dashboard.py` — self-contained HTML/CSS/JS dashboard; three sections: **STREAM** (live feeds), **CAPTURES** (snapshot latency stats + graph), **RECENT CAPTURES** (scrollable per-camera file list with download)
+- [x] `dashboard/` — HTML, CSS, and JavaScript for the three dashboard sections: **STREAM**, **CAPTURES**, and **RECENT CAPTURES**
 
 ### Fixed
 - [x] Replaced `assert _store is not None` (3×) with `HTTPException(503)` — asserts can be silently disabled with `python -O`
@@ -19,6 +24,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - [x] `readyz()`, `list_cameras()`, `get_status()` now ping both cameras in parallel via `asyncio.gather` instead of sequentially
 
 ### Changed
+- [x] Dashboard CSS and JavaScript now live in `dashboard/assets/`; Adwaita Mono and the extracted History download icon are served from its `fonts/` and `icons/` folders
+- [x] Dashboard assets moved out of `api/dashboard.py` into `dashboard/`; FastAPI serves the page and its CSS/JS separately, including when the app is proxied under `/cameras`
 - [x] `GET /api/v1/captures`: now returns `list[dict]` with rich metadata (`event_id`, `captured_at`, per-camera file sizes in bytes); sorted by mtime (most recent first); accepts `?limit=N` (1–50, default 10) — was `list[str]` capped at 20
 - [x] `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
 - [x] `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)

@@ -1,10 +1,9 @@
 """Event capture logic.
 
-A *capture* is a synchronized snapshot of one or more cameras saved to disk
-and associated with a caller-supplied event_id.  The directory layout is:
+A *capture* is one camera snapshot saved to disk under a server-generated
+event_id. The directory layout is:
 
-    {captures_dir}/{event_id}/whiteboard_20260924T143027482Z.jpg
-    {captures_dir}/{event_id}/robot_20260924T143027482Z.jpg
+    {captures_dir}/{event_id}/{camera_id}_20260924T143027482Z.jpg
     {captures_dir}/{event_id}/metadata.json
 
 Image filenames always follow ``<camera_id>_YYYYMMDDTHHMMSSmmmZ.jpg`` (UTC,
@@ -26,11 +25,11 @@ Captures written before this naming convention was introduced used a plain
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import secrets
-from datetime import datetime, timezone
+import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -38,6 +37,7 @@ if TYPE_CHECKING:
     from api.cameras import CameraSource
 
 log = logging.getLogger(__name__)
+CAPTURE_RETENTION = timedelta(days=2)
 
 
 # ── Models (plain dataclasses to avoid a second Pydantic import here) ─────────
@@ -61,12 +61,9 @@ def _timestamp_filename(camera_id: str, at: datetime) -> str:
 
 
 def _generate_event_id(at: datetime) -> str:
-    """Fallback folder/correlation id for callers that don't supply one
-    (e.g. the dashboard's manual "capture snapshot" button). CPEE and other
-    real callers should keep passing their own meaningful event_id — this is
-    only a safe, collision-resistant default for ad-hoc captures."""
+    """Generate a timestamped, collision-resistant folder ID for one image."""
     ts = at.strftime("%Y%m%dT%H%M%S") + f"{at.microsecond // 1000:03d}Z"
-    return f"capture-{ts}-{secrets.token_hex(2)}"
+    return f"capture-{ts}-{secrets.token_hex(8)}"
 
 
 # ── Store ─────────────────────────────────────────────────────────────────────
@@ -76,78 +73,117 @@ class CaptureStore:
         self._root = captures_dir
         self._root.mkdir(parents=True, exist_ok=True)
 
+    def prune_expired(self, now: datetime | None = None) -> tuple[int, int]:
+        """Remove stored capture events older than 48 hours.
+
+        Use the capture timestamp in metadata, falling back to the directory
+        modification time for older or damaged entries. Also remove orphaned
+        JPEGs from legacy event directories whose IDs were reused before
+        duplicate event IDs were rejected.
+
+        Returns (removed_event_directories, removed_orphan_images).
+        """
+        current = now or datetime.now(tz=timezone.utc)
+        if current.tzinfo is None:
+            raise ValueError("prune_expired requires a timezone-aware datetime")
+        cutoff = current - CAPTURE_RETENTION
+        cutoff_timestamp = cutoff.timestamp()
+        removed_events = 0
+        removed_images = 0
+
+        for event_dir in self._root.iterdir():
+            # Never follow a symlink out of the capture storage directory.
+            if event_dir.is_symlink() or not event_dir.is_dir():
+                continue
+            try:
+                meta_path = event_dir / "metadata.json"
+                try:
+                    raw = json.loads(meta_path.read_text())
+                    captured_at = datetime.fromisoformat(
+                        raw["captured_at"].replace("Z", "+00:00")
+                    )
+                    if captured_at.tzinfo is None:
+                        captured_at = captured_at.replace(tzinfo=timezone.utc)
+                    captured_timestamp = captured_at.timestamp()
+                except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                    captured_timestamp = event_dir.stat().st_mtime
+
+                if captured_timestamp < cutoff_timestamp:
+                    shutil.rmtree(event_dir)
+                    removed_events += 1
+                    continue
+
+                for image in event_dir.iterdir():
+                    if (image.is_symlink() or not image.is_file()
+                            or image.suffix.lower() != ".jpg"):
+                        continue
+                    if image.stat().st_mtime < cutoff_timestamp:
+                        image.unlink()
+                        removed_images += 1
+            except OSError as exc:
+                log.warning("Could not prune capture %s: %s", event_dir, exc)
+
+        return removed_events, removed_images
+
     # ── write ──
 
     async def capture(
         self,
-        event_id: str | None,
-        cameras: dict[str, "CameraSource"],
-        camera_ids: list[str] | None = None,
-        store: bool = True,
+        camera_id: str,
+        camera: "CameraSource",
     ) -> CaptureResult:
-        """Snapshot the requested cameras, optionally persist the images.
+        """Snapshot one camera and persist its image.
 
-        event_id groups every camera captured in *this* call under one
-        folder + metadata.json, and lets a caller (CPEE) correlate the
-        result back to its own process/activity later via
-        GET /api/v1/captures/{event_id}. If omitted, a timestamped id is
-        generated automatically — the per-image filename (in `filenames`)
-        is what actually identifies each picture either way.
+        Each event ID belongs to one saved capture. The server generates a
+        unique ID and stores the image and metadata under that directory.
         """
         now_dt = datetime.now(tz=timezone.utc)
         now = now_dt.isoformat(timespec="milliseconds")
-        if not event_id:
-            event_id = _generate_event_id(now_dt)
-        ids_to_capture = camera_ids or list(cameras.keys())
+        event_id = _generate_event_id(now_dt)
+        try:
+            data = await camera.snapshot()
+        except Exception as exc:
+            log.warning("Capture %s / camera %s failed: %s", event_id, camera_id, exc)
+            return CaptureResult(event_id=event_id, captured_at=now, images={}, errors={camera_id: str(exc)})
 
-        # Fetch all cameras concurrently
-        tasks = {
-            cam_id: asyncio.create_task(cameras[cam_id].snapshot())
-            for cam_id in ids_to_capture
-            if cam_id in cameras
-        }
-        results: dict[str, bytes] = {}
-        errors: dict[str, str] = {}
-
-        for cam_id, task in tasks.items():
-            try:
-                results[cam_id] = await task
-            except Exception as exc:
-                log.warning("Capture %s / camera %s failed: %s", event_id, cam_id, exc)
-                errors[cam_id] = str(exc)
-
-        image_urls: dict[str, str] = {}
-        filenames: dict[str, str] = {}
-
-        if store and results:
+        # mkdir is atomic: even if generated IDs collide, an existing image
+        # can never be overwritten. Try a fresh ID if that happens.
+        for _ in range(5):
             event_dir = self._root / event_id
-            event_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                event_dir.mkdir(parents=True, exist_ok=False)
+                break
+            except FileExistsError:
+                event_id = _generate_event_id(now_dt)
+        else:
+            raise RuntimeError("Could not allocate a unique capture ID")
+        try:
+            filename = _timestamp_filename(camera_id, now_dt)
+            img_path = event_dir / filename
+            img_path.write_bytes(data)
+            # The public URL pattern stays {camera_id}.jpg regardless of the
+            # on-disk filename — get_capture_image() resolves the real file.
+            image_urls = {camera_id: f"/api/v1/captures/{event_id}/{camera_id}.jpg"}
+            filenames = {camera_id: filename}
 
-            for cam_id, data in results.items():
-                filename = _timestamp_filename(cam_id, now_dt)
-                img_path = event_dir / filename
-                img_path.write_bytes(data)
-                filenames[cam_id] = filename
-                # The public URL pattern stays {camera_id}.jpg regardless of the
-                # on-disk filename — get_capture_image() resolves the real file.
-                image_urls[cam_id] = f"/api/v1/captures/{event_id}/{cam_id}.jpg"
-
-            # Write metadata side-car
             meta = {
                 "event_id": event_id,
                 "captured_at": now,
                 "images": image_urls,
                 "filenames": filenames,
-                "errors": errors,
+                "errors": {},
             }
             (event_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
+        except OSError:
+            shutil.rmtree(event_dir, ignore_errors=True)
+            raise
 
         return CaptureResult(
             event_id=event_id,
             captured_at=now,
             images=image_urls,
             filenames=filenames,
-            errors=errors,
+            errors={},
         )
 
     # ── read ──
