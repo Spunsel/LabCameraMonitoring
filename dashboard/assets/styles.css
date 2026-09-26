@@ -318,6 +318,7 @@ body.history-view.history-stacked { height: auto; }
 .cc-name { flex: 1; min-width: 0; }
 .cc-date { width: 145px; flex-shrink: 0; color: #999; }
 .cc-size { width:  85px; flex-shrink: 0; color: #888; text-align: right; }
+.cc-copy { width:  40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .cc-dl   { width:  40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 
 .cap-tbody .cc-name,
@@ -333,7 +334,7 @@ body.history-view.history-stacked { height: auto; }
   padding-bottom: 0.3rem;
 }
 
-.dl-btn {
+.dl-btn, .copy-btn {
   display: flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; flex: 0 0 24px;
   color: #e0e0e0;
@@ -341,8 +342,15 @@ body.history-view.history-stacked { height: auto; }
   border: 1px solid #4a4a4a;
   border-radius: 3px;
   text-decoration: none;
+  font: inherit;
+  cursor: pointer;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
-.dl-btn:hover { color: #fff; border-color: #777; background: #262626; }
+.dl-btn:hover, .copy-btn:hover { color: #fff; border-color: #777; background: #262626; }
+.dl-btn:focus-visible, .copy-btn:focus-visible { outline: 2px solid #9ecaff; outline-offset: 2px; }
+.copy-btn:disabled { cursor: default; }
 .dl-btn img   { width: 13px; height: 13px; display: block; }
 .dl-btn:hover img { filter: brightness(1.2); }
+.copy-btn svg { width: 15px; height: 15px; display: block; }
+.copy-btn.copy-success { color: #4ade80; border-color: #4ade80; }
+.copy-btn.copy-failed  { color: #f87171; border-color: #f87171; }

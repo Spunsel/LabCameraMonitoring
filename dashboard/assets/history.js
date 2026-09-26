@@ -21,6 +21,7 @@ CAMERAS.forEach(id => {
         <div class="cc cc-name">file</div>
         <div class="cc cc-date">captured</div>
         <div class="cc cc-size">size</div>
+        <div class="cc cc-copy"></div>
         <div class="cc cc-dl"></div>
       </div>
       <div class="cap-tbody" id="cap-body-${id}" tabindex="0"
@@ -73,6 +74,14 @@ function renderCaptures(captures, camId) {
     const dlCol     = sizeBytes
       ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download"><img src="${DL_ICON_URL}" alt=""></a>`
       : `<span style="color:#222">—</span>`;
+    const copyCol   = sizeBytes
+      ? `<button type="button" class="copy-btn" title="Copy link" aria-label="Copy snapshot link">
+           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+             <rect x="8" y="8" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+             <path d="M16 6V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+           </svg>
+         </button>`
+      : `<span style="color:#222">—</span>`;
 
     const row = document.createElement('div');
     row.className = 'cap-row';
@@ -80,6 +89,7 @@ function renderCaptures(captures, camId) {
       <div class="cc cc-name" title="event: ${cap.event_id}">${filename}</div>
       <div class="cc cc-date">${fmtDate(cap.captured_at)}</div>
       <div class="cc cc-size">${sizeStr}</div>
+      <div class="cc cc-copy">${copyCol}</div>
       <div class="cc cc-dl">${dlCol}</div>`;
     tbody.appendChild(row);
   }
@@ -117,8 +127,63 @@ export function stopHistory() {
   }
 }
 
+async function copyLink(url) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(url);
+      return;
+    } catch { /* Try the legacy clipboard method below. */ }
+  }
+
+  const input = document.createElement('textarea');
+  input.value = url;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  const previousFocus = document.activeElement;
+  document.body.appendChild(input);
+  input.select();
+  try {
+    if (!document.execCommand('copy')) throw new Error('Clipboard unavailable');
+  } finally {
+    input.remove();
+    previousFocus?.focus({ preventScroll: true });
+  }
+}
+
+function showCopyFeedback(button, success) {
+  const originalIcon = button.firstElementChild;
+  button.replaceChildren(success ? '✓' : '!');
+  button.title = success ? 'Link copied' : 'Could not copy link';
+  button.setAttribute('aria-label', button.title);
+  button.classList.toggle('copy-success', success);
+  button.classList.toggle('copy-failed', !success);
+  setTimeout(() => {
+    button.replaceChildren(originalIcon);
+    button.title = 'Copy link';
+    button.setAttribute('aria-label', 'Copy snapshot link');
+    button.classList.remove('copy-success', 'copy-failed');
+    button.disabled = false;
+  }, 2_000);
+}
+
 export function bindHistoryControls() {
   CAMERAS.forEach(id =>
     document.getElementById('cap-limit-' + id)
       .addEventListener('change', pollCaptures));
+
+  // Delegation keeps the button working after the table refreshes every 15 s.
+  rg.addEventListener('click', async event => {
+    const button = event.target.closest('.copy-btn');
+    if (!button) return;
+    const download = button.closest('.cap-row').querySelector('.dl-btn');
+    if (!download) return;
+    button.disabled = true;
+    try {
+      await copyLink(download.href);
+      showCopyFeedback(button, true);
+    } catch {
+      showCopyFeedback(button, false);
+    }
+  });
 }
