@@ -10,7 +10,6 @@ Environment variables:
 from __future__ import annotations
 
 import asyncio
-import json as _json
 import logging
 import time as _time
 from contextlib import asynccontextmanager
@@ -237,45 +236,10 @@ def _public_capture_url(request: Request, image_path: str) -> str:
 async def list_captures(
     limit: int = Query(default=10, ge=1, le=50),
 ) -> list[dict[str, Any]]:
-    """List stored captures with metadata (event_id, captured_at, image sizes).
-    Sorted by creation time, most recent first."""
-    captures_dir = settings.storage.captures_dir
-    if not captures_dir.exists():
-        return []
-
-    dirs = sorted(
-        (p for p in captures_dir.iterdir() if p.is_dir()),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )[:limit]
-
-    results: list[dict[str, Any]] = []
-    for event_dir in dirs:
-        item: dict[str, Any] = {
-            "event_id": event_dir.name,
-            "captured_at": None,
-            "images": {},           # cam_id → file size in bytes
-            "filenames": {},        # cam_id → on-disk filename
-        }
-        meta_path = event_dir / "metadata.json"
-        if meta_path.exists():
-            try:
-                meta = _json.loads(meta_path.read_text())
-                item["captured_at"] = meta.get("captured_at")
-                filenames = meta.get("filenames", {})
-                for cam_id in meta.get("images", {}):
-                    # filenames holds the timestamped name; older captures
-                    # (written before that convention) fall back to {cam_id}.jpg
-                    filename = filenames.get(cam_id) or f"{cam_id}.jpg"
-                    img_path = event_dir / filename
-                    if img_path.exists():
-                        item["images"][cam_id] = img_path.stat().st_size
-                        item["filenames"][cam_id] = filename
-            except Exception:
-                pass
-        results.append(item)
-
-    return results
+    """List complete flat pairs and older event folders, newest first."""
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    return _store.list_captures(limit)
 
 
 @app.post(
@@ -291,26 +255,55 @@ async def list_captures(
 async def create_capture(camera_id: str, request: Request) -> PlainTextResponse:
     """Save one snapshot; return its public URL as plain text and Location.
 
-    The POST has no request body. The server generates the event ID and
-    retains the JPEG for 48 hours. For immediate JPEG bytes without storage,
+    The POST has no request body. The server saves a JPEG and matching JSON
+    for 48 hours. For immediate JPEG bytes without storage,
     use GET /api/v1/cameras/{camera_id}/snapshot.jpg.
     """
     if await request.body():
         raise HTTPException(status_code=400, detail="Capture POST does not accept a request body")
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    result: CaptureResult = await _store.capture(
-        camera_id=camera_id,
-        camera=_get_camera(camera_id),
-    )
-    if result.errors:
+    camera = _get_camera(camera_id)
+    try:
+        result: CaptureResult = await _store.capture(camera_id=camera_id, camera=camera)
+    except RuntimeError:
         raise HTTPException(status_code=503, detail=f"Camera {camera_id!r} failed to capture")
-    image_url = _public_capture_url(request, result.images[camera_id])
+    image_url = _public_capture_url(request, result.image_url)
     return PlainTextResponse(
         content=image_url + "\n",
         status_code=201,
         headers={"Location": image_url, "Cache-Control": "no-store"},
     )
+
+
+@app.get("/api/v1/captures/{stem}.jpg", tags=["captures"], response_class=Response)
+async def get_saved_image(stem: str) -> Response:
+    """Return a JPEG from a complete flat pair."""
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    path = _store.flat_image_path(stem)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store", "X-Camera-Id": stem.rsplit("_", 1)[0]},
+    )
+
+
+@app.get("/api/v1/captures/{stem}.json", tags=["captures"])
+async def get_saved_metadata(stem: str) -> JSONResponse:
+    """Return the JSON sidecar of a complete flat pair."""
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    metadata = _store.flat_metadata(stem)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail="Capture metadata not found")
+    return JSONResponse(content=metadata, headers={"Cache-Control": "no-store"})
 
 
 @app.get(
@@ -319,19 +312,13 @@ async def create_capture(camera_id: str, request: Request) -> PlainTextResponse:
     response_model=CaptureResponse,
 )
 async def get_capture(event_id: str) -> CaptureResponse:
-    """Retrieve metadata for a previously stored capture."""
+    """Read an older event-folder capture until it expires."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    result = _store.get(event_id)
+    result = _store.get_legacy(event_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Capture {event_id!r} not found")
-    return CaptureResponse(
-        event_id=result.event_id,
-        captured_at=result.captured_at,
-        images=result.images,
-        filenames=result.filenames,
-        errors=result.errors,
-    )
+    return CaptureResponse(**result)
 
 
 @app.get(
@@ -340,14 +327,18 @@ async def get_capture(event_id: str) -> CaptureResponse:
     response_class=Response,
 )
 async def get_capture_image(event_id: str, camera_id: str) -> Response:
-    """Retrieve a saved JPEG. Expired captures return 404 after cleanup."""
+    """Read an older event-folder JPEG until it expires."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    path = _store.image_path(event_id, camera_id)
+    path = _store.legacy_image_path(event_id, camera_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Image not found")
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Image not found")
     return Response(
-        content=path.read_bytes(),
+        content=data,
         media_type="image/jpeg",
         headers={
             "Cache-Control": "no-store",

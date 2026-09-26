@@ -49,15 +49,15 @@ returns `404` after deletion. POST always saves one selected image; use Mode 1
 when you want the JPEG directly in the response.
 
 The dashboard's **capture snapshot** button uses Mode 2. Select one camera
-in the URL for each POST. The server generates each event ID; store the
-returned URL alongside your CPEE activity if you need a correlation key.
+in the URL for each POST. Store the returned image URL alongside your CPEE
+activity if you need a correlation key.
 
 **Whiteboard:**
 ```bash
 curl -fsS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/captures
 ```
 
-**Robot (another request and generated event ID):**
+**Robot (another request and timestamped filename):**
 ```bash
 curl -fsS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/cameras/robot/captures
 ```
@@ -70,16 +70,25 @@ curl -fsS -X POST http://127.0.0.1:8100/api/v1/cameras/whiteboard/captures
 The previous `POST /api/v1/captures` route has been removed. Including
 any request body, including the former JSON selector, returns `400`.
 
-To confirm the capture on disk, derive its generated event ID from the saved
-URL. The JPEG filename follows `<camera>_YYYYMMDDTHHMMSSmmmZ.jpg` (UTC):
+To confirm the capture on disk, get the JPEG name from the returned URL. Its
+metadata is stored beside it under the same name with `.json` in place of
+`.jpg`. Both are written directly into the configured capture directory:
 ```bash
 # On lab, after running the Mode 2 example above:
-capture_event_id=$(basename "$(dirname "$saved_url")")
+capture_filename=$(basename "$saved_url")
+metadata_filename=${capture_filename%.jpg}.json
 # Set this to storage.captures_dir from your active config:
 capture_storage_dir=/var/lib/camera-service/captures
-ls -la "$capture_storage_dir/$capture_event_id"/
-cat "$capture_storage_dir/$capture_event_id"/metadata.json | python3 -m json.tool
+ls -lh "$capture_storage_dir/$capture_filename" "$capture_storage_dir/$metadata_filename"
+python3 -m json.tool "$capture_storage_dir/$metadata_filename"
 ```
+
+The filename follows `<camera>_YYYYMMDDTHHMMSSmmmZ.jpg` (UTC). It is assigned
+after the service receives the image; it is not the sensor exposure timestamp.
+If two snapshots finish in the same millisecond, the service uses the next
+unused millisecond for the later filename. GET the same URL with `.json` in
+place of `.jpg` to retrieve the metadata remotely. Earlier event-folder URLs
+continue to work until those captures expire.
 
 ---
 

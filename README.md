@@ -34,9 +34,11 @@ snapshots. Image data never passes through demo.
 | `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Fresh JPEG bytes in the response (not stored) |
 | `GET` | `/api/v1/cameras/{id}/stream.mjpeg` | Live MJPEG stream |
 | `POST` | `/api/v1/cameras/{id}/captures` | Save one JPEG; return its full URL as plain text and in `Location` (no request body) |
-| `GET` | `/api/v1/captures` | List captures with metadata: event_id, date, file sizes. `?limit=N` (1–50, default 10) |
-| `GET` | `/api/v1/captures/{event_id}` | Capture metadata |
-| `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Stored capture image |
+| `GET` | `/api/v1/captures` | List saved images, timestamps, and file sizes. `?limit=N` (1–50, default 10) |
+| `GET` | `/api/v1/captures/{camera_id}_{timestamp}.jpg` | Saved JPEG |
+| `GET` | `/api/v1/captures/{camera_id}_{timestamp}.json` | Matching metadata |
+| `GET` | `/api/v1/captures/{event_id}` | Read older folder-based metadata until it expires |
+| `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Read an older folder-based image until it expires |
 | `GET` | `/api/v1/status` | Camera availability, resolution, fps, uptime |
 | `GET` | `/dashboard` | Live monitoring dashboard |
 | `GET` | `/dashboard/assets/{path}` | Dashboard CSS, JavaScript, font, and icon |
@@ -59,10 +61,16 @@ curl -fsS -X POST 'https://lab.bpm.in.tum.de/cameras/api/v1/cameras/whiteboard/c
 ```
 
 Each POST captures only the camera named in its URL. To capture the robot,
-send a separate POST to `/api/v1/cameras/robot/captures`. The server generates
-a distinct event ID for every saved JPEG. The old collection POST route is
-removed; passing a request body returns `400`, and an unknown camera returns
-`404`.
+send a separate POST to `/api/v1/cameras/robot/captures`. Each new image and
+its metadata are saved directly in `storage.captures_dir` as a matching pair:
+`whiteboard_YYYYMMDDTHHMMSSmmmZ.jpg` and
+`whiteboard_YYYYMMDDTHHMMSSmmmZ.json` (UTC). The filename identifies the
+capture; there is no separate event folder or generated event ID. If two
+requests finish in the same millisecond, the service allocates the next
+available millisecond before writing either file. The filename time is
+assigned after the service receives a JPEG, not at sensor exposure. The old
+collection POST route is removed; passing a request body returns `400`, and an
+unknown camera returns `404`.
 
 The `201 Created` response prints the complete image URL as `text/plain` and
 also returns it in the `Location` header. `GET` on that URL returns the stored
@@ -71,11 +79,15 @@ returned link includes Nginx's `/cameras` prefix, set
 `api.public_base_url: "https://lab.bpm.in.tum.de/cameras"` in
 `config/production.yaml`. If unset, local development uses the request URL.
 
-Stored capture folders and any older orphaned JPEGs become eligible for
+Stored file pairs, older event folders, and orphaned JPEGs become eligible for
 deletion after 48 hours. Cleanup runs at startup and hourly while the API is
 running, so removal can happen up to one hour after expiry. Links return `404`
 after deletion. The direct JPEG mode creates no stored capture. See
 [`USAGE.md`](USAGE.md) for a complete two-request example.
+
+For new captures, use the same filename stem with `.json` to retrieve the
+metadata. Earlier `/{event_id}/{camera_id}.jpg` links and metadata URLs keep
+working until those older captures expire.
 
 ### Snapshot response headers
 
@@ -89,16 +101,16 @@ X-Captured-At: 2026-09-18T14:30:12.420Z
 ### Capture request (CPEE)
 
 `POST /api/v1/cameras/whiteboard/captures` with an empty request body.
-The camera is selected by the URL, and the server chooses the event ID.
+The camera is selected by the URL, and the filename identifies the snapshot.
 
 ### Capture response
 
 ```http
 HTTP/1.1 201 Created
 Content-Type: text/plain; charset=utf-8
-Location: https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg
+Location: https://lab.bpm.in.tum.de/cameras/api/v1/captures/whiteboard_20260926T071520889Z.jpg
 
-https://lab.bpm.in.tum.de/cameras/api/v1/captures/capture-20260925T160000000Z-ab12cd34ef567890/whiteboard.jpg
+https://lab.bpm.in.tum.de/cameras/api/v1/captures/whiteboard_20260926T071520889Z.jpg
 ```
 
 ---

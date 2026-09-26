@@ -10,13 +10,14 @@ All files that make up the camera service on the lab server, grouped by location
 |---|---|
 | `api/main.py` | FastAPI app. Defines all HTTP routes, lifespan startup/shutdown, error handling. |
 | `api/cameras.py` | Camera abstraction. `MockCameraSource` for local dev; `UStreamerCameraSource` fetches JPEG frames from a µStreamer process over HTTP. |
-| `api/captures.py` | Event capture logic. Saves one selected camera's JPEG per request with a `metadata.json` side-car. |
+| `api/captures.py` | Capture storage. Saves one JPEG and a same-named JSON sidecar per request, and reads older event folders until expiry. |
 | `api/settings.py` | Config loader. Reads `production.yaml` (or `development.yaml` locally) via Pydantic and exposes a typed `Settings` object. |
 | `dashboard/index.html` | Dashboard page served at `GET /dashboard` by FastAPI. |
 | `dashboard/assets/styles.css` | Dashboard layout and Adwaita Mono font definition. Served at `GET /dashboard/assets/styles.css`. |
 | `dashboard/assets/app.js` | Dashboard behavior, polling, and charts. Served at `GET /dashboard/assets/app.js`. |
 | `dashboard/assets/fonts/adwaita-mono-regular.ttf` | Self-hosted font used throughout the dashboard. |
 | `dashboard/assets/icons/download.svg` | Download icon for History captures. |
+| `dashboard/assets/icons/copy.svg` | Copy-link icon for History captures. |
 | `config/production.yaml` | **Active config** (gitignored). Contains real device paths, ports, storage, and `api.public_base_url` for public image links. |
 | `.venv/` | Python virtual environment. All dependencies installed here via `pip`. |
 | `requirements.txt` | Pinned Python dependencies (`fastapi`, `uvicorn`, `httpx`, `pydantic`, …). |
@@ -56,8 +57,11 @@ Created automatically by the app on startup. The production template uses
 
 | Path | Content |
 |---|---|
-| `{event_id}/{camera_id}_YYYYMMDDTHHMMSSmmmZ.jpg` | One timestamped JPEG from the selected camera. |
-| `{event_id}/metadata.json` | Capture timestamp, selected image URL, and any camera error. |
+| `{camera_id}_YYYYMMDDTHHMMSSmmmZ.jpg` | One saved JPEG, directly inside the capture directory. |
+| `{camera_id}_YYYYMMDDTHHMMSSmmmZ.json` | The JPEG's camera ID, receive time, and filename. |
+
+The matching filename stem identifies the snapshot. Older `{event_id}/`
+directories remain readable until the 48-hour retention cleanup removes them.
 
 ---
 
@@ -131,15 +135,15 @@ CaptureStore.capture()         ~/camera-service/api/captures.py
   │  requests one selected camera
   └──► µStreamer :8101  →  whiteboard JPEG
   │
-  │  writes to configured captures_dir/{generated_event_id}/
+  │  writes directly to configured captures_dir/
   │    whiteboard_<UTC timestamp>.jpg
-  │    metadata.json
+  │    whiteboard_<UTC timestamp>.json
   ▼
 Client receives 201 + complete image URL in plain text and Location
 ```
 
 To capture the robot, make a separate POST to
-`/cameras/api/v1/cameras/robot/captures`. The server generates its ID.
+`/cameras/api/v1/cameras/robot/captures`. The filename identifies each image.
 `api.public_base_url` in production config supplies the external `/cameras`
 prefix on the returned image URL.
 
