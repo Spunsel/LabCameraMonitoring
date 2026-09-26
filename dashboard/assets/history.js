@@ -2,6 +2,7 @@ import { BASE, CAMERAS, CAM_LABEL, fmtDate } from './common.js';
 
 // Resolve the asset relative to this module, including behind /cameras.
 const DL_ICON_URL = new URL('icons/download.svg', import.meta.url).href;
+const COPY_ICON_URL = new URL('icons/copy.svg', import.meta.url).href;
 
 // ── Recent captures table ────────────────────────────────────────────
 const rg = document.getElementById('recent-grid');
@@ -76,10 +77,7 @@ function renderCaptures(captures, camId) {
       : `<span style="color:#222">—</span>`;
     const copyCol   = sizeBytes
       ? `<button type="button" class="copy-btn" title="Copy link" aria-label="Copy snapshot link">
-           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-             <rect x="8" y="8" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
-             <path d="M16 6V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1" fill="none" stroke="currentColor" stroke-width="1.5"/>
-           </svg>
+           <img src="${COPY_ICON_URL}" alt="">
          </button>`
       : `<span style="color:#222">—</span>`;
 

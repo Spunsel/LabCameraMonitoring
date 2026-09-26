@@ -351,6 +351,7 @@ body.history-view.history-stacked { height: auto; }
 .copy-btn:disabled { cursor: default; }
 .dl-btn img   { width: 13px; height: 13px; display: block; }
 .dl-btn:hover img { filter: brightness(1.2); }
-.copy-btn svg { width: 15px; height: 15px; display: block; }
+.copy-btn img { width: 15px; height: 15px; display: block; }
+.copy-btn:hover img { filter: brightness(1.2); }
 .copy-btn.copy-success { color: #4ade80; border-color: #4ade80; }
 .copy-btn.copy-failed  { color: #f87171; border-color: #f87171; }
