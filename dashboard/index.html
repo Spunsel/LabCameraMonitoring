@@ -10,13 +10,13 @@
 
   <div class="hdr">
     <div class="hdr-side hdr-left">
-      <span><span class="hdr-title">camera-service</span><span> @ lab.bpm.in.tum.de</span></span>
+      <span class="hdr-brand"><span class="hdr-title">camera-service</span> <span class="hdr-host">@ lab.bpm.in.tum.de</span></span>
     </div>
     <div class="tabs">
-      <a href="#live"      class="tab-btn" data-tab="live">stream</a>
-      <a href="#snapshots" class="tab-btn" data-tab="snapshots">snapshots</a>
-      <a href="#docs"      class="tab-btn" data-tab="docs">docs</a>
-      <a href="#history"   class="tab-btn" data-tab="history">history</a>
+      <a href="#live"      class="tab-btn" data-tab="live" aria-label="Stream" title="Stream"><img class="tab-icon" src="dashboard/assets/icons/stream.svg" alt=""><span class="tab-label">stream</span></a>
+      <a href="#snapshots" class="tab-btn" data-tab="snapshots" aria-label="Snapshots" title="Snapshots"><img class="tab-icon" src="dashboard/assets/icons/snapshots.svg" alt=""><span class="tab-label">snapshots</span></a>
+      <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
+      <a href="#history"   class="tab-btn" data-tab="history" aria-label="History" title="History"><img class="tab-icon" src="dashboard/assets/icons/history.svg" alt=""><span class="tab-label">history</span></a>
     </div>
     <div class="hdr-side hdr-right">
       <span id="uptime">—</span>
@@ -41,17 +41,29 @@
         <p>Use <code>whiteboard</code> or <code>robot</code> for <code>{camera_id}</code>. The API base is <code class="api-docs-base">https://lab.bpm.in.tum.de/cameras</code>.</p>
 
         <h3>1 · Return the image directly</h3>
-        <p>Each GET takes the current snapshot and returns <code>image/jpeg</code>. The image is not saved to the server and has no <i>Hist        <p>Each GET takes the current snapshot and returns <code>image/jpeg</code>. The image is not saved to the server and has no <i>HISTORY</i> entry.</p>
-ory</i> entry.</p>
+        <p>Each GET takes the current picture and returns <code>image/jpeg</code>. The image is not saved to the server and has no History entry.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/snapshot.jpg</span></code></pre>
 
         <h3>2 · Save the image and return a link</h3>
         <p>Put one camera ID in the URL and send an empty POST. The server saves a JPEG and a matching JSON metadata file. The response contains the complete image URL as plain text and in the <code>Location</code> header.</p>
         <pre class="api-code"><code><span class="tok-method">POST</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/captures</span></code></pre>
-        <p>POST returns <code>201 Created</code>. The filename combines the camera ID with a UTC time to the millisecond, for example <code>whiteboard_20260926T071520889Z</code>. The same name with <code>.json</code> retrieves its metadata. Saved files are automatically deleted after 2 days (cleanup runs on startup and hourly).</p>
+        <p>POST returns <code>201 Created</code>. The filename combines the camera ID with a UTC time to the millisecond, for example <code>whiteboard_20260926T184527973Z</code>. The same name with <code>.json</code> retrieves its metadata. An unknown camera returns <code>404</code>. Saved files become eligible for deletion after 2 days; cleanup runs on startup and hourly.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{camera_id}_{timestamp}</span><span class="tok-path">.jpg</span>
 <span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{camera_id}_{timestamp}</span><span class="tok-path">.json</span></code></pre>
-        <p>On the server, both files are saved directly inside <code>var/captures/</code>. The timestamp is assigned after the service receives the image; it is not the camera sensor's exposure time.</p>
+        <p>On the server, both files are saved directly inside <code>var/captures/</code> (or the configured capture directory). The timestamp is assigned after the service receives the image; it is not the camera sensor's exposure time. Earlier folder-based capture links continue to work until those captures expire.</p>
+
+        <h3>Saved JSON metadata</h3>
+        <p>Each saved JPEG has a <code>.json</code> file beside it with the same filename stem. For example, <code>whiteboard_20260926T184527973Z.jpg</code> has <code>whiteboard_20260926T184527973Z.json</code>:</p>
+        <pre class="api-code"><code>{
+  <span class="tok-key">"camera_id"</span>: "whiteboard",
+  <span class="tok-key">"captured_at"</span>: "2026-09-26T18:45:27.973+00:00",
+  <span class="tok-key">"filename"</span>: "whiteboard_20260926T184527973Z.jpg",
+  <span class="tok-key">"size_bytes"</span>: 19322,
+  <span class="tok-key">"width_px"</span>: 1280,
+  <span class="tok-key">"height_px"</span>: 720,
+  <span class="tok-key">"content_type"</span>: "image/jpeg"
+}</code></pre>
+        <p><code>size_bytes</code> is the JPEG file size in bytes; <code>width_px</code> and <code>height_px</code> are its dimensions in pixels. <code>captured_at</code> is the service's UTC time after receiving the JPEG. GET the matching <code>.json</code> URL to read this information without taking another picture.</p>
       </section>
 
       <section class="api-docs-section" aria-labelledby="api-docs-example">
@@ -62,11 +74,12 @@ ory</i> entry.</p>
         <p>Alternatively, save the picture and print its link:</p>
         <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span></code></pre>
         <p>Response body: a link to the saved JPEG (the timestamp changes for every capture):</p>
-        <pre class="api-code"><code><span class="tok-string"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T071520889Z.jpg</span></code></pre>
-        <p>Send a GET request to that link to retrieve the saved JPEG:</p>
-        <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T071520889Z.jpg</span></code></pre>
-        <p>Get the matching metadata with <code>GET /api/v1/captures/whiteboard_20260926T071520889Z.json</code>.</p>
-        <p>GET returns <code>200 OK</code> and <code>image/jpeg</code>. To save your own capture locally:</p>
+        <pre class="api-code"><code><span class="tok-string"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.jpg</span></code></pre>
+        <p>Send a GET request to that link to retrieve the saved JPEG without taking another snapshot:</p>
+        <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.jpg</span></code></pre>
+        <p>Get its matching JSON metadata by replacing <code>.jpg</code> with <code>.json</code> in that URL:</p>
+        <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.json'</span></code></pre>
+        <p>The JPEG GET returns <code>200 OK</code> and <code>image/jpeg</code>; the matching JSON GET returns <code>200 OK</code> and <code>application/json</code>. To save your own capture locally:</p>
         <pre class="api-code"><code>saved_url=$(<span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span>)
 <span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">"$saved_url"</span> <span class="tok-flag">-o</span> whiteboard.jpg</code></pre>
       </section>

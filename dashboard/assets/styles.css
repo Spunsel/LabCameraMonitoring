@@ -28,11 +28,7 @@ body {
   flex-direction: column;
 }
 
-/* Give the History panel a definite height so its table bodies can scroll
-   instead of stretching the page when new rows arrive. */
 body.history-view { height: 100vh; height: 100dvh; }
-/* Stacked tables can extend down the page; keep the sticky header inside
-   the full document height while their individual bodies stop at ten rows. */
 body.history-view.history-stacked { height: auto; }
 
 .hdr {
@@ -43,9 +39,6 @@ body.history-view.history-stacked { height: auto; }
   display: flex;
   align-items: center;
   border-bottom: 1px solid #3a3a3a;
-  /* Negative side-margins cancel the body's own horizontal padding so
-     this bar's background bleeds edge-to-edge, clearly separating it
-     from the page content below instead of blending into it. */
   margin: 0 -1.5rem 1.25rem;
   padding: 1rem 1.5rem 0.85rem;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
@@ -54,11 +47,6 @@ body.history-view.history-stacked { height: auto; }
 }
 .hdr-title { color: #e0e0e0; font-weight: bold; }
 
-/* Three independent sections. Left/right each take an equal, flexible
-   share of the remaining width (flex: 1) while the tabs in the middle
-   stay a fixed, natural size (flex: 0 0 auto) — so the tabs sit at the
-   true center of the whole bar and never shift when the uptime text
-   (right section) grows or shrinks. */
 .hdr-side {
   flex: 1 1 0%;
   min-width: 0;
@@ -66,6 +54,12 @@ body.history-view.history-stacked { height: auto; }
   align-items: center;
 }
 .hdr-right { justify-content: flex-end; }
+.hdr-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 1ch;
+}
+.hdr-brand > span { white-space: nowrap; }
 
 .grid {
   display: grid;
@@ -77,8 +71,6 @@ body.history-view.history-stacked { height: auto; }
   .grid { grid-template-columns: 1fr; }
 }
 
-/* The layout check in app.js keeps two columns until a rendered filename
-   actually overflows, then puts Robot below Whiteboard. */
 #recent-grid {
   flex: 1 1 0;
   min-height: 0;
@@ -88,8 +80,6 @@ body.history-view.history-stacked { height: auto; }
   grid-auto-rows: minmax(0, 1fr);
 }
 
-/* With Robot below Whiteboard, each table uses the height of its own rows,
-   capped at ten. The side-by-side layout keeps filling the viewport instead. */
 #recent-grid.is-stacked {
   flex: 0 0 auto;
   grid-template-columns: minmax(0, 1fr);
@@ -109,26 +99,30 @@ body.history-view.history-stacked { height: auto; }
   flex: 0 0 auto;
 }
 .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
   color: #e0e0e0;
   font-weight: bold;
   text-decoration: none;
-  padding: 0.3rem 0.9rem;
+  padding: 0 0.9rem;
   border: 1px solid #4a4a4a;
   border-radius: 3px;
   background: #1c1c1c;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  white-space: nowrap;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
 .tab-btn:hover  { color: #fff; border-color: #666; background: #232323; }
 .tab-btn.active { color: #fff; border-color: #888; background: #2a2a2a; }
+.tab-icon { display: none; }
 
-/* Panels stay in the DOM always — visibility toggles, nothing rebuilds */
 .panel        { display: none; }
 .panel.active { display: block; }
 
-/* The History panel passes its remaining viewport height to the grid. */
 #panel-history.active {
   display: flex;
   flex-direction: column;
@@ -136,8 +130,6 @@ body.history-view.history-stacked { height: auto; }
   min-height: 0;
 }
 
-/* One-column REST guide. Color spans highlight static HTTP, shell, and JSON
-   examples without fetching a syntax-highlighting library from a CDN. */
 .api-docs { width: 100%; max-width: 56rem; min-width: 0; margin: 0 auto 1.5rem; font-family: 'Adwaita Sans', sans-serif; }
 .api-docs h1 { color: #e0e0e0; font-size: 19px; line-height: 1.4; margin-bottom: 0.5rem; }
 .api-docs h2 { color: #e0e0e0; font-size: 14px; }
@@ -172,9 +164,31 @@ body.history-view.history-stacked { height: auto; }
 .api-code .tok-string { color: #e4ae83; }
 .api-code .tok-key { color: #c4abed; }
 
+@media (max-width: 58rem) {
+  .hdr-brand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+}
+
+@media (max-width: 44rem) {
+  .hdr { justify-content: center; }
+  .hdr-side { display: none; }
+}
+
+@media (max-width: 24.375rem) {
+  .hdr { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .tab-btn {
+    width: 2rem;
+    padding: 0;
+  }
+  .tab-label { display: none; }
+  .tab-icon { display: block; width: 1.5rem; height: 1.5rem; }
+  .tab-btn[data-tab="live"] .tab-icon { width: 1.875rem; height: 1.875rem; }
+}
+
 @media (max-width: 720px) {
-  .hdr { flex-wrap: wrap; row-gap: 0.5rem; }
-  .tabs { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
   .api-docs-section { padding: 0.8rem; }
 }
 
@@ -200,8 +214,6 @@ body.history-view.history-stacked { height: auto; }
 }
 .img-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-/* Stats (left) + graph (right) inside one bordered container, with an
-   explicit vertical divider between the two halves */
 .cam-bottom {
   display: flex;
   align-items: stretch;
@@ -248,10 +260,6 @@ body.history-view.history-stacked { height: auto; }
 .b { color: #f87171; }
 .m { color: #999; }
 
-/* ── Capture tables ─────────────────────────────────────────────────── */
-
-/* One flex column per camera — stretches to the full height of its
-   (stretched) grid cell so the table wrapper below can grow into it. */
 .cap-col {
   display: flex;
   flex-direction: column;
@@ -283,14 +291,12 @@ body.history-view.history-stacked { height: auto; }
 .cap-limit::-webkit-outer-spin-button { -webkit-appearance: none; }
 .cap-limit:focus { outline: none; border-color: #888; color: #fff; }
 
-/* Wrapper fills the rest of .cap-col; tbody grows inside it and scrolls
-   internally once its content exceeds the available height — this is
-   what makes the table reach all the way to the bottom of the window. */
 .cap-tbl-wrap {
   border: 1px solid #444;
   flex: 1;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
   min-height: 0;
   min-width: 0;
 }
@@ -302,8 +308,6 @@ body.history-view.history-stacked { height: auto; }
   min-height: 0;
   min-width: 0;
   overflow-y: auto;
-  /* Native scrollbar gutters cut the row dividers short of the table border.
-     Keep scrolling, but give the rows the complete width of the table. */
   scrollbar-width: none;
 }
 .cap-tbody::-webkit-scrollbar { display: none; }
@@ -315,11 +319,18 @@ body.history-view.history-stacked { height: auto; }
 .cap-row.cap-empty  { justify-content: center; padding: 0.5rem; color: #2e2e2e; font-size: 12px; }
 
 .cc { padding: 0.22rem 0.5rem; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cc-name { flex: 1; min-width: 0; }
-.cc-date { width: 145px; flex-shrink: 0; color: #999; }
-.cc-size { width:  85px; flex-shrink: 0; color: #888; text-align: right; }
+.cc-name { flex: 1; min-width: 2rem; }
+.cc-date { width: 145px; min-width: 2rem; flex-shrink: 0; color: #999; }
+.cc-size { width: 85px; min-width: 4rem; flex-shrink: 0; color: #888; text-align: right; }
 .cc-copy { width:  40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .cc-dl   { width:  40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+@container (max-width: calc(2rem + 145px + 85px + 80px)) {
+  .cc-date { flex-shrink: 1; }
+}
+@container (max-width: calc(2rem + 2rem + 85px + 80px)) {
+  .cc-size { flex-shrink: 1; }
+}
 
 .cap-tbody .cc-name,
 .cap-tbody .cc-date,

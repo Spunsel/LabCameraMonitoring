@@ -2,14 +2,11 @@ import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls, median, fmtTime } from '
 import { drawBarGraph, SNAP_GRAPH_OPTS } from './charts.js';
 import { pollCaptures } from './history.js';
 
-// TTFB history per camera (snapshot graph)
 const snapHist = {};
 CAMERAS.forEach(id => snapHist[id] = []);
 
-// ── Snapshot page ───────────────────────────────────────────────────
 const cg = document.getElementById('capture-grid');
 CAMERAS.forEach(id => {
-  // ── Snapshot stats + graph ──
   const cs = document.createElement('div');
   cs.innerHTML = `
     <div class="cam-lbl-row">
@@ -36,13 +33,6 @@ CAMERAS.forEach(id => {
   cg.appendChild(cs);
 });
 
-// ── Snapshot download time measurement (every 5 s) ───────────────────
-// fetch() resolves at headers-received (first byte). We instead record
-// the time until await r.blob() completes: how long the viewer's browser
-// actually waits for the whole JPEG. That is what a human perceives, and
-// what differs from the stream's capture-to-send latency above.
-// firstByteMs is kept only for the tooltip, not graphed.
-// Failed/invalid responses push null — a gap, never a fake 0 ms.
 export async function measureSnapshot(id) {
   const t0 = performance.now();
   let downloadMs = null, firstByteMs = null, blob = null;
@@ -67,8 +57,6 @@ export async function measureSnapshot(id) {
   snapHist[id].push(downloadMs);
   if (snapHist[id].length > TOTAL_SLOTS) snapHist[id].shift();
 
-  // Big number = median of the last 5 *successful* samples — smooths
-  // display noise while every individual sample still shows as its own bar.
   const last5   = snapHist[id].filter(v => v !== null).slice(-5);
   const median5 = median(last5);
 
@@ -91,8 +79,6 @@ export async function measureSnapshot(id) {
   const szEl = document.getElementById(`snap-size-${id}`);
   if (szEl) szEl.textContent = blob ? `${(blob.size / 1024).toFixed(1)} kB` : '—';
 
-  // Still-image preview (Snapshots tab) — reuses this same blob, so the
-  // preview never triggers a second network request.
   if (blob) {
     const imgEl = document.getElementById(`snap-img-${id}`);
     if (imgEl) {
@@ -109,9 +95,6 @@ export async function measureSnapshot(id) {
   drawBarGraph(`graph-snap-${id}`, snapHist[id], SNAP_GRAPH_OPTS);
 }
 
-// ── Manual "capture snapshot" button (Snapshots tab) ───────────────────
-// A bodyless POST saves one picture. The API returns the public image URL as
-// plain text and in Location; the timestamped filename is chosen server-side.
 export async function captureSnapshot(id) {
   const btn = document.getElementById(`cap-btn-${id}`);
   if (btn) { btn.disabled = true; btn.textContent = 'capturing…'; }
@@ -121,7 +104,7 @@ export async function captureSnapshot(id) {
     });
     if (!r.ok) throw new Error(`Capture failed: HTTP ${r.status}`);
     if (!r.headers.get('Location')) throw new Error('Capture did not return an image URL');
-    await pollCaptures();   // refresh the table immediately
+    await pollCaptures();
     if (btn) btn.textContent = 'captured ✓';
   } catch (err) {
     if (btn) btn.textContent = 'failed';

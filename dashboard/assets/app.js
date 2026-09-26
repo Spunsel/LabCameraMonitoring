@@ -3,13 +3,11 @@ import { pollStreamMetrics, updateStreamStatus, setStreamActive, redrawStreamGra
 import { measureSnapshot, updateSnapshotStatus, redrawSnapshotGraphs, bindSnapshotControls } from './snapshots.js';
 import { startHistory, stopHistory, updateHistoryLayout, bindHistoryControls } from './history.js';
 
-// Keep Docs examples correct both behind /cameras and on localhost.
 const API_BASE_URL = new URL('.', window.location.href).href.replace(/\/$/, '');
 document.querySelectorAll('.api-docs-base').forEach(el => {
   el.textContent = API_BASE_URL;
 });
 
-// Uptime ticks locally between the 30-second status requests.
 let uptimeBaseSeconds = null;
 let uptimeBaseAt = null;
 
@@ -62,8 +60,6 @@ function showTab(tab) {
 
 window.addEventListener('hashchange', () => showTab(normalizeTab(location.hash)));
 
-// Keep snapshot and stream samples running across tabs, but poll capture
-// history only while the History tab is open.
 pollStatus();
 pollStreamMetrics();
 Promise.all(CAMERAS.map(measureSnapshot));

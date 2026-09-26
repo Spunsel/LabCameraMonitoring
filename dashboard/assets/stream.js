@@ -1,12 +1,9 @@
 import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls } from './common.js';
 import { drawBarGraph, STREAM_GRAPH_OPTS } from './charts.js';
 
-// Stream capture-to-send latency history per camera (stream graph)
-// Full 360-slot array — null means no data for that 5-second slot.
 const streamHist = {};
 CAMERAS.forEach(id => streamHist[id] = new Array(TOTAL_SLOTS).fill(null));
 
-// ── Build stream cards (stream image + capture latency graph) ──────────
 const sg = document.getElementById('stream-grid');
 CAMERAS.forEach(id => {
   const d = document.createElement('div');
@@ -32,10 +29,6 @@ CAMERAS.forEach(id => {
   sg.appendChild(d);
 });
 
-// ── Stream metrics polling (every 5 s) ───────────────────────────────
-// Converts the API's timestamped slot list into a full TOTAL_SLOTS array
-// where each index maps to a specific 5-second window ending at "now".
-// Gaps (windows with no valid frames) remain null.
 function buildTimestampedHistory(history, intervalSeconds) {
   const result = new Array(TOTAL_SLOTS).fill(null);
   if (!history.length) return result;
@@ -86,7 +79,6 @@ export async function pollStreamMetrics() {
   }
 }
 
-// The single status request in app.js supplies data to both camera pages.
 export function updateStreamStatus(data) {
   if (!data) {
     CAMERAS.forEach(id => document.getElementById('dot-' + id).className = 'dot off');
@@ -110,7 +102,6 @@ export function setStreamActive(active) {
     if (active) {
       if (!img.getAttribute('src')) img.src = img.dataset.src;
     } else {
-      // A hidden MJPEG image would otherwise keep its server connection open.
       img.removeAttribute('src');
     }
   });

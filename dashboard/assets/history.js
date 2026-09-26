@@ -1,10 +1,8 @@
 import { BASE, CAMERAS, CAM_LABEL, fmtDate } from './common.js';
 
-// Resolve the asset relative to this module, including behind /cameras.
 const DL_ICON_URL = new URL('icons/download.svg', import.meta.url).href;
 const COPY_ICON_URL = new URL('icons/copy.svg', import.meta.url).href;
 
-// ── Recent captures table ────────────────────────────────────────────
 const rg = document.getElementById('recent-grid');
 CAMERAS.forEach(id => {
   const rt = document.createElement('div');
@@ -35,18 +33,14 @@ CAMERAS.forEach(id => {
 
 export function updateHistoryLayout() {
   if (!document.getElementById('panel-history').classList.contains('active')) return;
-  // Check the actual two-column layout, including browser zoom, font metrics,
-  // and scrollbar space. Remove the stacked class before measuring so growing
-  // the window can return the tables to two columns.
   rg.classList.remove('is-stacked');
   document.body.classList.remove('history-stacked');
-  const clipped = [...rg.querySelectorAll('.cc-name')]
-    .some(cell => cell.scrollWidth > cell.clientWidth + 1);
-  rg.classList.toggle('is-stacked', clipped);
-  document.body.classList.toggle('history-stacked', clipped);
+  const shouldStack = [...rg.querySelectorAll(
+    '.cc-name, .cc-date, .cc-size, .cap-thead, .cap-row:not(.cap-empty)')]
+    .some(el => el.scrollWidth > el.clientWidth);
+  rg.classList.toggle('is-stacked', shouldStack);
+  document.body.classList.toggle('history-stacked', shouldStack);
 
-  // A stacked table sizes itself to its rows, up to ten actual row heights.
-  // Measure the rendered height so font and browser zoom changes stay exact.
   for (const id of CAMERAS) {
     const body = document.getElementById(`cap-body-${id}`);
     const row = body.querySelector('.cap-row:not(.cap-empty)');
@@ -54,7 +48,6 @@ export function updateHistoryLayout() {
   }
 }
 
-// ── Capture table rendering ────────────────────────────────────────────
 function renderCaptures(captures, camId) {
   const tbody = document.getElementById(`cap-body-${camId}`);
   if (!tbody) return;
@@ -68,8 +61,6 @@ function renderCaptures(captures, camId) {
   for (const cap of captures) {
     const sizeBytes = cap.images?.[camId] ?? 0;
     const sizeStr   = sizeBytes ? `${(sizeBytes / 1024).toFixed(1)} kB` : '—';
-    // Legacy event folders use their old URL until they expire. New flat
-    // captures use their timestamped JPEG filename directly in the URL.
     const filename  = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
     const dlUrl     = cap.event_id
       ? `${BASE}/api/v1/captures/${cap.event_id}/${camId}.jpg`
@@ -95,7 +86,6 @@ function renderCaptures(captures, camId) {
   }
 }
 
-// ── Poll captures (every 15 s) ─────────────────────────────────────────
 export async function pollCaptures() {
   let data;
   try {
@@ -132,7 +122,7 @@ async function copyLink(url) {
     try {
       await navigator.clipboard.writeText(url);
       return;
-    } catch { /* Try the legacy clipboard method below. */ }
+    } catch {}
   }
 
   const input = document.createElement('textarea');
@@ -172,7 +162,6 @@ export function bindHistoryControls() {
     document.getElementById('cap-limit-' + id)
       .addEventListener('change', pollCaptures));
 
-  // Delegation keeps the button working after the table refreshes every 15 s.
   rg.addEventListener('click', async event => {
     const button = event.target.closest('.copy-btn');
     if (!button) return;

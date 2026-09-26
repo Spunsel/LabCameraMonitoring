@@ -1,10 +1,7 @@
-// Camera configuration and formatting shared across dashboard pages.
 export const BASE = new URL('.', window.location.href).pathname.replace(/\/$/, '');
 export const CAMERAS = ['whiteboard', 'robot'];
 export const CAM_LABEL = { whiteboard: 'whiteboard camera', robot: 'robot camera' };
 export const TOTAL_SLOTS = 360;
-
-// ── Helpers ──────────────────────────────────────────────────────────
 
 export function latCls(ms) {
   if (ms < 50)  return 'g';
