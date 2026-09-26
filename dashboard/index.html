@@ -40,20 +40,20 @@
         <h2 id="api-docs-how">How it works</h2>
         <p>Use <code>whiteboard</code> or <code>robot</code> for <code>{camera_id}</code>. The API base is <code class="api-docs-base">https://lab.bpm.in.tum.de/cameras</code>.</p>
 
-        <h3>1 · Return the image directly</h3>
-        <p>Each GET takes the current picture and returns <code>image/jpeg</code>. The image is not saved to the server and has no History entry.</p>
+        <h3>1) Return the image directly</h3>
+        <p>Each GET takes the current picture and returns <code>image/jpeg</code>. The image is not saved to the server and has no <i>HISTORY</i> entry.</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/snapshot.jpg</span></code></pre>
 
-        <h3>2 · Save the image and return a link</h3>
+        <h3>2) Save the image and return a link</h3>
         <p>Put one camera ID in the URL and send an empty POST. The server saves a JPEG and a matching JSON metadata file. The response contains the complete image URL as plain text and in the <code>Location</code> header.</p>
         <pre class="api-code"><code><span class="tok-method">POST</span> <span class="tok-path">/api/v1/cameras/</span><span class="tok-placeholder">{camera_id}</span><span class="tok-path">/captures</span></code></pre>
-        <p>POST returns <code>201 Created</code>. The filename combines the camera ID with a UTC time to the millisecond, for example <code>whiteboard_20260926T184527973Z</code>. The same name with <code>.json</code> retrieves its metadata. An unknown camera returns <code>404</code>. Saved files become eligible for deletion after 2 days; cleanup runs on startup and hourly.</p>
+        <p>The filename combines the camera ID with a UTC time to the millisecond, for example <code>whiteboard_20260926T184527973Z</code>. The same name with <code>.json</code> retrieves its metadata. Saved files are automatically deleted after 2 days (cleanup runs on startup and hourly).</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{camera_id}_{timestamp}</span><span class="tok-path">.jpg</span>
 <span class="tok-method">GET</span> <span class="tok-path">/api/v1/captures/</span><span class="tok-placeholder">{camera_id}_{timestamp}</span><span class="tok-path">.json</span></code></pre>
-        <p>On the server, both files are saved directly inside <code>var/captures/</code> (or the configured capture directory). The timestamp is assigned after the service receives the image; it is not the camera sensor's exposure time. Earlier folder-based capture links continue to work until those captures expire.</p>
+        <p>On the server, both files are saved directly inside <code>var/captures/</code>. The timestamp is assigned after the service receives the image (it is not the camera sensor's exposure time).</p>
 
         <h3>Saved JSON metadata</h3>
-        <p>Each saved JPEG has a <code>.json</code> file beside it with the same filename stem. For example, <code>whiteboard_20260926T184527973Z.jpg</code> has <code>whiteboard_20260926T184527973Z.json</code>:</p>
+        <p>Each saved JPEG has a <code>.json</code> file beside it with the same filename prefix. For example, <code>whiteboard_20260926T184527973Z.jpg</code> has <code>whiteboard_20260926T184527973Z.json</code>:</p>
         <pre class="api-code"><code>{
   <span class="tok-key">"camera_id"</span>: "whiteboard",
   <span class="tok-key">"captured_at"</span>: "2026-09-26T18:45:27.973+00:00",
@@ -63,11 +63,10 @@
   <span class="tok-key">"height_px"</span>: 720,
   <span class="tok-key">"content_type"</span>: "image/jpeg"
 }</code></pre>
-        <p><code>size_bytes</code> is the JPEG file size in bytes; <code>width_px</code> and <code>height_px</code> are its dimensions in pixels. <code>captured_at</code> is the service's UTC time after receiving the JPEG. GET the matching <code>.json</code> URL to read this information without taking another picture.</p>
       </section>
 
       <section class="api-docs-section" aria-labelledby="api-docs-example">
-        <h2 id="api-docs-example">Example · whiteboard</h2>
+        <h2 id="api-docs-example">Example - whiteboard</h2>
         <p>Get a picture directly and write the JPEG to <code>whiteboard.jpg</code>:</p>
         <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/snapshot.jpg'</span> <span class="tok-flag">-o</span> whiteboard.jpg</code></pre>
 
@@ -75,7 +74,7 @@
         <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span></code></pre>
         <p>Response body: a link to the saved JPEG (the timestamp changes for every capture):</p>
         <pre class="api-code"><code><span class="tok-string"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.jpg</span></code></pre>
-        <p>Send a GET request to that link to retrieve the saved JPEG without taking another snapshot:</p>
+        <p>Send a GET request to that link to retrieve the saved JPEG:</p>
         <pre class="api-code"><code><span class="tok-method">GET</span> <span class="tok-path"><span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.jpg</span></code></pre>
         <p>Get its matching JSON metadata by replacing <code>.jpg</code> with <code>.json</code> in that URL:</p>
         <pre class="api-code"><code><span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/captures/whiteboard_20260926T184527973Z.json'</span></code></pre>
