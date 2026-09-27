@@ -4,6 +4,50 @@ const DL_ICON_URL = new URL('icons/download.svg', import.meta.url).href;
 const COPY_ICON_URL = new URL('icons/copy.svg', import.meta.url).href;
 
 const rg = document.getElementById('recent-grid');
+const jpgBytesEl = document.getElementById('history-jpg-bytes');
+const jsonBytesEl = document.getElementById('history-json-bytes');
+const cleanupEl = document.getElementById('history-last-cleanup');
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['kB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = -1;
+  do {
+    value /= 1024;
+    unit++;
+  } while (value >= 1024 && unit < units.length - 1);
+  return `${value.toFixed(1)} ${units[unit]}`;
+}
+
+async function pollStorageSummary() {
+  try {
+    const r = await fetch(`${BASE}/api/v1/captures/stats`);
+    if (!r.ok) throw new Error();
+    const summary = await r.json();
+    jpgBytesEl.textContent = formatBytes(summary.jpg_bytes);
+    jsonBytesEl.textContent = formatBytes(summary.json_bytes);
+    jpgBytesEl.title = `${summary.jpg_bytes} bytes`;
+    jsonBytesEl.title = `${summary.json_bytes} bytes`;
+    const cleanup = summary.last_successful_cleanup;
+    cleanupEl.textContent = cleanup
+      ? new Date(cleanup).toLocaleString(undefined, {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+        })
+      : 'never';
+    cleanupEl.title = cleanup ?? '';
+  } catch {
+    jpgBytesEl.textContent = '—';
+    jsonBytesEl.textContent = '—';
+    cleanupEl.textContent = '—';
+    jpgBytesEl.title = '';
+    jsonBytesEl.title = '';
+    cleanupEl.title = '';
+  }
+}
+
 CAMERAS.forEach(id => {
   const rt = document.createElement('div');
   rt.className = 'cap-col';
@@ -87,6 +131,7 @@ function renderCaptures(captures, camId) {
 }
 
 export async function pollCaptures() {
+  pollStorageSummary();
   let data;
   try {
     const r = await fetch(`${BASE}/api/v1/captures?limit=50`);

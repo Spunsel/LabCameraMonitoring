@@ -101,6 +101,36 @@ class CaptureStore:
     def __init__(self, captures_dir: Path) -> None:
         self._root = captures_dir
         self._root.mkdir(parents=True, exist_ok=True)
+        self.last_successful_cleanup: datetime | None = None
+
+    def storage_summary(self) -> dict[str, int | str | None]:
+        """Size of saved JPG and JSON files, including older capture folders."""
+        totals = {"jpg_bytes": 0, "json_bytes": 0}
+
+        def include(path: Path) -> None:
+            if path.is_symlink() or not path.is_file():
+                return
+            key = {".jpg": "jpg_bytes", ".json": "json_bytes"}.get(path.suffix.lower())
+            if key is not None:
+                totals[key] += path.stat().st_size
+
+        for path in self._root.iterdir():
+            if path.is_symlink():
+                continue
+            if path.is_dir():
+                # Previous versions stored each capture in a one-level folder.
+                for child in path.iterdir():
+                    include(child)
+            else:
+                include(path)
+
+        return {
+            **totals,
+            "last_successful_cleanup": (
+                self.last_successful_cleanup.isoformat(timespec="milliseconds")
+                if self.last_successful_cleanup else None
+            ),
+        }
 
     async def capture(self, camera_id: str, camera: CameraSource) -> CaptureResult:
         """Save one camera JPEG; publish the JSON only after the image exists."""
@@ -275,6 +305,7 @@ class CaptureStore:
         cutoff = current - CAPTURE_RETENTION
         removed_captures = 0
         removed_orphans = 0
+        had_errors = False
 
         for path in self._root.iterdir():
             if path.is_symlink():
@@ -311,5 +342,8 @@ class CaptureStore:
                                 image.unlink()
                                 removed_orphans += 1
             except OSError as exc:
+                had_errors = True
                 log.warning("Could not prune capture %s: %s", path, exc)
+        if not had_errors:
+            self.last_successful_cleanup = datetime.now(tz=timezone.utc)
         return removed_captures, removed_orphans

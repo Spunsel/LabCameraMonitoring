@@ -24,24 +24,36 @@ snapshots. Image data never passes through demo.
 
 ---
 
+
+
 ## API endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/healthz` | Process health |
-| `GET` | `/readyz` | Both cameras delivering frames |
-| `GET` | `/api/v1/cameras` | List cameras and current state |
-| `GET` | `/api/v1/cameras/{id}/snapshot.jpg` | Fresh JPEG bytes in the response (not stored) |
-| `GET` | `/api/v1/cameras/{id}/stream.mjpeg` | Live MJPEG stream |
-| `POST` | `/api/v1/cameras/{id}/captures` | Save one JPEG; return its full URL as plain text and in `Location` (no request body) |
-| `GET` | `/api/v1/captures` | List saved images, timestamps, and file sizes. `?limit=N` (1–50, default 10) |
-| `GET` | `/api/v1/captures/{camera_id}_{timestamp}.jpg` | Saved JPEG |
-| `GET` | `/api/v1/captures/{camera_id}_{timestamp}.json` | Matching metadata |
-| `GET` | `/api/v1/captures/{event_id}` | Read older folder-based metadata until it expires |
-| `GET` | `/api/v1/captures/{event_id}/{camera_id}.jpg` | Read an older folder-based image until it expires |
-| `GET` | `/api/v1/status` | Camera availability, resolution, fps, uptime |
-| `GET` | `/dashboard` | Live monitoring dashboard |
-| `GET` | `/dashboard/assets/{path}` | Dashboard CSS, JavaScript, font, and icon |
+
+| Method | Path                                            | Purpose                                                                                            |
+| ------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `GET`  | `/healthz`                                      | Process health                                                                                     |
+| `GET`  | `/readyz`                                       | Both cameras delivering frames                                                                     |
+| `GET`  | `/api/v1/cameras`                               | List cameras and current state                                                                     |
+| `GET`  | `/api/v1/cameras/{id}/snapshot.jpg`             | Fresh JPEG bytes in the response (not stored)                                                      |
+| `GET`  | `/api/v1/cameras/{id}/stream.mjpeg`             | Live MJPEG stream                                                                                  |
+| `POST` | `/api/v1/cameras/{id}/captures`                 | Save one JPEG; return its full URL as plain text and in `Location` (no request body)               |
+| `GET`  | `/api/v1/captures`                              | List saved images, timestamps, and file sizes. `?limit=N` (1–50, default 10)                       |
+| `GET`  | `/api/v1/captures/stats`                        | Total saved JPG and JSON bytes (including older capture folders), and last successful cleanup time |
+| `GET`  | `/api/v1/captures/{camera_id}_{timestamp}.jpg`  | Saved JPEG                                                                                         |
+| `GET`  | `/api/v1/captures/{camera_id}_{timestamp}.json` | Matching metadata                                                                                  |
+| `GET`  | `/api/v1/captures/{event_id}`                   | Read older folder-based metadata until it expires                                                  |
+| `GET`  | `/api/v1/captures/{event_id}/{camera_id}.jpg`   | Read an older folder-based image until it expires                                                  |
+| `GET`  | `/api/v1/status`                                | Camera availability, resolution, fps, uptime                                                       |
+| `GET`  | `/dashboard`                                    | Live monitoring dashboard                                                                          |
+| `GET`  | `/dashboard/assets/{path}`                      | Dashboard CSS, JavaScript, font, and icon                                                          |
+
+
+The Stream tab's **actual fps** counts distinct frames observed from µStreamer
+over the latest five-second interval; it does not measure frames displayed by
+the browser. In the bundled Nginx configuration, the public MJPEG stream routes
+go directly to µStreamer with proxy buffering disabled. FastAPI's fallback
+stream route, used when accessing the API without those Nginx rules, defaults
+to 10 fps.
 
 ### Snapshot REST API: image bytes or a saved link
 
@@ -83,7 +95,7 @@ Stored file pairs, older event folders, and orphaned JPEGs become eligible for
 deletion after 48 hours. Cleanup runs at startup and hourly while the API is
 running, so removal can happen up to one hour after expiry. Links return `404`
 after deletion. The direct JPEG mode creates no stored capture. See
-[`USAGE.md`](USAGE.md) for a complete two-request example.
+`[USAGE.md](USAGE.md)` for a complete two-request example.
 
 For new captures, use the same filename stem with `.json` to retrieve the
 metadata. Earlier `/{event_id}/{camera_id}.jpg` links and metadata URLs keep
@@ -97,6 +109,8 @@ Cache-Control: no-store
 X-Camera-Id: whiteboard
 X-Captured-At: 2026-09-18T14:30:12.420Z
 ```
+
+
 
 ### Capture request (CPEE)
 
@@ -114,6 +128,8 @@ https://lab.bpm.in.tum.de/cameras/api/v1/captures/whiteboard_20260926T071520889Z
 ```
 
 ---
+
+
 
 ## Quick start (local development)
 
@@ -136,6 +152,8 @@ curl http://127.0.0.1:8100/api/v1/cameras/whiteboard/snapshot.jpg -o whiteboard.
 ```
 
 ---
+
+
 
 ## Configuration
 
@@ -172,7 +190,9 @@ storage:
 
 ---
 
-## Deployment (lab.bpm.in.tum.de)
+
+
+## Deployment ([lab.bpm.in.tum.de](http://lab.bpm.in.tum.de))
 
 ```bash
 # 1. Install µStreamer (Fedora)
@@ -230,6 +250,8 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
+
+
 ## Updating the service after `rsync`
 
 Sync local changes to the server with the `rsync-lab` alias (set in `~/.bashrc`):
@@ -245,12 +267,14 @@ alias rsync-lab='rsync -av \
 
 After running `rsync-lab`, SSH into the server and run only what changed:
 
-| What changed | Commands on lab |
-|---|---|
-| `api/*.py` | `sudo systemctl restart camera-api` |
-| `dashboard/*` | Refresh the browser; when first switching from `api/dashboard.py`, also restart `camera-api` after deploying `api/main.py` |
-| `deployment/nginx/camera-api.conf` | `sudo cp ~/camera-service/deployment/nginx/camera-api.conf /etc/nginx/cpee.d/locations.d/camera && sudo nginx -t && sudo systemctl reload nginx` |
-| `deployment/systemd/*.service` | `sudo cp ~/camera-service/deployment/systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart camera-api camera-capture@whiteboard camera-capture@robot` |
+
+| What changed                       | Commands on lab                                                                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `api/*.py`                         | `sudo systemctl restart camera-api`                                                                                                                                                              |
+| `dashboard/*`                      | Refresh the browser; when first switching from `api/dashboard.py`, also restart `camera-api` after deploying `api/main.py`                                                                       |
+| `deployment/nginx/camera-api.conf` | `sudo cp ~/camera-service/deployment/nginx/camera-api.conf /etc/nginx/cpee.d/locations.d/camera && sudo nginx -t && sudo systemctl reload nginx`                                                 |
+| `deployment/systemd/*.service`     | `sudo cp ~/camera-service/deployment/systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart camera-api camera-capture@whiteboard camera-capture@robot` |
+
 
 After restarting FastAPI, verify it came back up:
 
@@ -260,6 +284,8 @@ curl -s http://127.0.0.1:8100/healthz
 ```
 
 ---
+
+
 
 ## Project layout
 
@@ -302,3 +328,4 @@ camera-service/
 ├── SERVER_LAYOUT.md
 └── README.md
 ```
+

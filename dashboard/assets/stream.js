@@ -18,7 +18,8 @@ CAMERAS.forEach(id => {
         <table class="mt">
           <tr><td class="k">capture-to-send latency</td><td id="stream-lat-${id}" class="m">—</td></tr>
           <tr><td class="k">stream status</td><td id="stream-state-${id}" class="m">—</td></tr>
-          <tr><td class="k">fps config</td><td id="stream-fps-${id}">—</td></tr>
+          <tr><td class="k">actual fps</td><td id="stream-fps-${id}" title="Distinct frames observed from µStreamer per second over the latest 5-second interval; browser display FPS is not measured.">—</td></tr>
+          <tr><td class="k">resolution</td><td id="stream-res-${id}">—</td></tr>
         </table>
       </div>
       <div class="cam-divider"></div>
@@ -49,11 +50,17 @@ export async function pollStreamMetrics() {
     const r = await fetch(`${BASE}/api/v1/stream-metrics`);
     if (!r.ok) throw new Error();
     data = await r.json();
-  } catch { return; }
+  } catch {
+    CAMERAS.forEach(id => document.getElementById(`stream-fps-${id}`).textContent = '—');
+    return;
+  }
 
   for (const id of CAMERAS) {
     const cam = data.cameras?.[id];
-    if (!cam) continue;
+    if (!cam) {
+      document.getElementById(`stream-fps-${id}`).textContent = '—';
+      continue;
+    }
 
     const stateEl = document.getElementById(`stream-state-${id}`);
     if (stateEl) {
@@ -73,6 +80,15 @@ export async function pollStreamMetrics() {
       }
     }
 
+    const fpsEl = document.getElementById(`stream-fps-${id}`);
+    const latest = cam.latest;
+    const fresh = latest && (Date.now() / 1000 - latest.timestamp) < 2 * data.interval_seconds;
+    if (fpsEl) {
+      fpsEl.textContent = cam.state === 'live' && fresh && Number.isFinite(latest.count)
+        ? `${(latest.count / data.interval_seconds).toFixed(1)} fps`
+        : '—';
+    }
+
     const hist = buildTimestampedHistory(cam.history, data.interval_seconds);
     streamHist[id] = hist;
     drawBarGraph(`graph-stream-${id}`, hist, STREAM_GRAPH_OPTS);
@@ -81,13 +97,15 @@ export async function pollStreamMetrics() {
 
 export function updateStreamStatus(data) {
   if (!data) {
-    CAMERAS.forEach(id => document.getElementById('dot-' + id).className = 'dot off');
+    CAMERAS.forEach(id => {
+      document.getElementById('dot-' + id).className = 'dot off';
+      document.getElementById('stream-res-' + id).textContent = '—';
+    });
     return;
   }
   for (const [id, cam] of Object.entries(data.cameras)) {
     document.getElementById('dot-' + id).className = 'dot ' + (cam.available ? 'on' : 'off');
-    const fpsEl = document.getElementById('stream-fps-' + id);
-    if (fpsEl) fpsEl.textContent = cam.fps != null ? cam.fps + ' fps' : '—';
+    document.getElementById('stream-res-' + id).textContent = cam.resolution ?? '—';
   }
 }
 

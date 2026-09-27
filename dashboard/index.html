@@ -13,7 +13,7 @@
       <span class="hdr-brand"><span class="hdr-title">camera-service</span> <span class="hdr-host">@ lab.bpm.in.tum.de</span></span>
     </div>
     <div class="tabs">
-      <a href="#live"      class="tab-btn" data-tab="live" aria-label="Stream" title="Stream"><img class="tab-icon" src="dashboard/assets/icons/stream.svg" alt=""><span class="tab-label">stream</span></a>
+      <a href="#stream"    class="tab-btn" data-tab="stream" aria-label="Stream" title="Stream"><img class="tab-icon" src="dashboard/assets/icons/stream.svg" alt=""><span class="tab-label">stream</span></a>
       <a href="#snapshots" class="tab-btn" data-tab="snapshots" aria-label="Snapshots" title="Snapshots"><img class="tab-icon" src="dashboard/assets/icons/snapshots.svg" alt=""><span class="tab-label">snapshots</span></a>
       <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
       <a href="#history"   class="tab-btn" data-tab="history" aria-label="History" title="History"><img class="tab-icon" src="dashboard/assets/icons/history.svg" alt=""><span class="tab-label">history</span></a>
@@ -23,7 +23,7 @@
     </div>
   </div>
 
-  <div class="panel" id="panel-live">
+  <div class="panel" id="panel-stream">
     <div class="grid" id="stream-grid"></div>
   </div>
 
@@ -86,6 +86,11 @@
   </div>
 
   <div class="panel" id="panel-history">
+    <div class="history-summary" aria-label="Capture storage and cleanup">
+      <div class="history-summary-item"><span>JPG storage</span><strong id="history-jpg-bytes">—</strong></div>
+      <div class="history-summary-item"><span>JSON storage</span><strong id="history-json-bytes">—</strong></div>
+      <div class="history-summary-item"><span>last successful cleanup</span><strong id="history-last-cleanup">—</strong></div>
+    </div>
     <div class="grid" id="recent-grid"></div>
   </div>
 

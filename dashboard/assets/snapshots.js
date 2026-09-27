@@ -3,7 +3,11 @@ import { drawBarGraph, SNAP_GRAPH_OPTS } from './charts.js';
 import { pollCaptures } from './history.js';
 
 const snapHist = {};
-CAMERAS.forEach(id => snapHist[id] = []);
+const firstByteHist = {};
+CAMERAS.forEach(id => {
+  snapHist[id] = [];
+  firstByteHist[id] = [];
+});
 
 const cg = document.getElementById('capture-grid');
 CAMERAS.forEach(id => {
@@ -20,9 +24,9 @@ CAMERAS.forEach(id => {
       <div class="cam-stats">
         <table class="mt">
           <tr><td class="k">last refresh</td><td id="snap-refresh-${id}" class="m">—</td></tr>
+          <tr><td class="k">time to first byte</td><td id="snap-firstbyte-${id}" class="m">—</td></tr>
           <tr><td class="k">download time</td><td id="snap-ttfb-${id}" class="m">—</td></tr>
           <tr><td class="k">frame size</td><td id="snap-size-${id}">—</td></tr>
-          <tr><td class="k">resolution</td><td id="snap-res-${id}">—</td></tr>
         </table>
       </div>
       <div class="cam-divider"></div>
@@ -52,13 +56,31 @@ export async function measureSnapshot(id) {
     downloadMs = performance.now() - t0;
   } catch {
     downloadMs = null;
+    firstByteMs = null;
   }
 
   snapHist[id].push(downloadMs);
   if (snapHist[id].length > TOTAL_SLOTS) snapHist[id].shift();
+  firstByteHist[id].push(firstByteMs);
+  if (firstByteHist[id].length > TOTAL_SLOTS) firstByteHist[id].shift();
 
   const last5   = snapHist[id].filter(v => v !== null).slice(-5);
   const median5 = median(last5);
+  const firstByte5 = median(firstByteHist[id].filter(v => v !== null).slice(-5));
+
+  const firstByteEl = document.getElementById(`snap-firstbyte-${id}`);
+  if (firstByteEl) {
+    if (firstByte5 !== null) {
+      const rounded = Math.round(firstByte5);
+      firstByteEl.textContent = `${rounded} ms`;
+      firstByteEl.className = latCls(rounded);
+      firstByteEl.title = 'Median of the last 5 successful snapshot requests';
+    } else {
+      firstByteEl.textContent = '—';
+      firstByteEl.className = 'm';
+      firstByteEl.title = '';
+    }
+  }
 
   const ttfbEl = document.getElementById(`snap-ttfb-${id}`);
   if (ttfbEl) {
@@ -113,13 +135,6 @@ export async function captureSnapshot(id) {
     setTimeout(() => {
       if (btn) { btn.disabled = false; btn.textContent = 'capture snapshot'; }
     }, 1500);
-  }
-}
-
-export function updateSnapshotStatus(data) {
-  for (const [id, cam] of Object.entries(data.cameras)) {
-    const resEl = document.getElementById('snap-res-' + id);
-    if (resEl) resEl.textContent = cam.resolution ?? '—';
   }
 }
 

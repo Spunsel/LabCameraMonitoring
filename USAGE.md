@@ -202,7 +202,7 @@ The dashboard's tabs are URL-hash based, so any of these can be
 bookmarked or shared directly:
 
 ```
-https://lab.bpm.in.tum.de/cameras/dashboard#live         # Stream tab (default)
+https://lab.bpm.in.tum.de/cameras/dashboard#stream       # Stream tab (default)
 https://lab.bpm.in.tum.de/cameras/dashboard#snapshots    # Snapshots tab
 https://lab.bpm.in.tum.de/cameras/dashboard#history      # History (recent captures) tab
 ```

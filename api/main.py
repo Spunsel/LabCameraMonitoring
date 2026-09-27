@@ -242,6 +242,14 @@ async def list_captures(
     return _store.list_captures(limit)
 
 
+@app.get("/api/v1/captures/stats", tags=["captures"])
+async def capture_storage_stats() -> dict[str, int | str | None]:
+    """On-disk JPG/JSON usage and time of the last complete cleanup."""
+    if _store is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    return _store.storage_summary()
+
+
 @app.post(
     "/api/v1/cameras/{camera_id}/captures",
     tags=["captures"],
