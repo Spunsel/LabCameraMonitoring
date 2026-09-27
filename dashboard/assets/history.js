@@ -111,12 +111,12 @@ function renderCaptures(captures, camId) {
       : `${BASE}/api/v1/captures/${encodeURIComponent(filename)}`;
     const dlCol     = sizeBytes
       ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download"><img src="${DL_ICON_URL}" alt=""></a>`
-      : `<span style="color:#222">—</span>`;
+      : `<span class="cc-unavailable">—</span>`;
     const copyCol   = sizeBytes
       ? `<button type="button" class="copy-btn" title="Copy link" aria-label="Copy snapshot link">
            <img src="${COPY_ICON_URL}" alt="">
          </button>`
-      : `<span style="color:#222">—</span>`;
+      : `<span class="cc-unavailable">—</span>`;
 
     const row = document.createElement('div');
     row.className = 'cap-row';
