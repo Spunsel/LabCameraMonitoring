@@ -2,6 +2,7 @@ import { BASE, CAMERAS, fmtUptime } from './common.js';
 import { pollStreamMetrics, updateStreamStatus, setStreamActive, redrawStreamGraphs } from './stream.js';
 import { measureSnapshot, redrawSnapshotGraphs, bindSnapshotControls } from './snapshots.js';
 import { startHistory, stopHistory, updateHistoryLayout, bindHistoryControls } from './history.js';
+import { setSettingsActive } from './settings.js';
 
 const API_BASE_URL = new URL('.', window.location.href).href.replace(/\/$/, '');
 document.querySelectorAll('.api-docs-base').forEach(el => {
@@ -41,6 +42,7 @@ async function pollStatus() {
 
 function normalizeTab(hash) {
   if (hash === '#snapshots') return 'snapshots';
+  if (hash === '#settings') return 'settings';
   if (hash === '#docs') return 'docs';
   if (hash === '#history') return 'history';
   return 'stream';
@@ -51,12 +53,14 @@ function showTab(tab) {
   if (tab !== 'history') document.body.classList.remove('history-stacked');
   document.getElementById('panel-stream').classList.toggle('active', tab === 'stream');
   document.getElementById('panel-snapshots').classList.toggle('active', tab === 'snapshots');
+  document.getElementById('panel-settings').classList.toggle('active', tab === 'settings');
   document.getElementById('panel-docs').classList.toggle('active', tab === 'docs');
   document.getElementById('panel-history').classList.toggle('active', tab === 'history');
   document.querySelectorAll('.tab-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.tab === tab));
 
   setStreamActive(tab === 'stream');
+  setSettingsActive(tab === 'settings');
   if (tab === 'snapshots') redrawSnapshotGraphs();
   if (tab === 'history') startHistory();
   else stopHistory();

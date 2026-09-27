@@ -1,5 +1,8 @@
 # camera-service
 
+Camera settings: see [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) for the new dashboard
+panels, operator access, deployment setup and control API.
+
 Stable camera gateway for the BPM lab at TU München.
 Provides on-demand JPEG snapshots, an MJPEG live stream, and a CPEE-friendly
 event-capture endpoint for the **whiteboard** and **robot** Logitech StreamCams.
@@ -328,4 +331,3 @@ camera-service/
 ├── SERVER_LAYOUT.md
 └── README.md
 ```
-

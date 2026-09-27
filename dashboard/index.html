@@ -32,6 +32,7 @@
     <div class="tabs">
       <a href="#stream"    class="tab-btn" data-tab="stream" aria-label="Stream" title="Stream"><img class="tab-icon" src="dashboard/assets/icons/stream.svg" alt=""><span class="tab-label">stream</span></a>
       <a href="#snapshots" class="tab-btn" data-tab="snapshots" aria-label="Snapshots" title="Snapshots"><img class="tab-icon" src="dashboard/assets/icons/snapshots.svg" alt=""><span class="tab-label">snapshots</span></a>
+      <a href="#settings"  class="tab-btn" data-tab="settings" aria-label="Settings" title="Settings"><img class="tab-icon" src="dashboard/assets/icons/settings.svg" alt=""><span class="tab-label">settings</span></a>
       <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
       <a href="#history"   class="tab-btn" data-tab="history" aria-label="History" title="History"><img class="tab-icon" src="dashboard/assets/icons/history.svg" alt=""><span class="tab-label">history</span></a>
     </div>
@@ -53,9 +54,14 @@
     <div class="grid" id="capture-grid"></div>
   </div>
 
+  <div class="panel" id="panel-settings" aria-label="Camera settings">
+    <div id="settings-access"></div>
+    <div class="grid" id="settings-grid"></div>
+  </div>
+
   <div class="panel" id="panel-docs">
     <main class="api-docs" aria-labelledby="api-docs-title">
-      <h1 id="api-docs-title">Snapshot REST API</h1>
+      <h1 id="api-docs-title">Camera REST API</h1>
       <p>Take a snapshot from one camera. Receive the JPEG directly, or save it and receive a link to the image.</p>
 
       <section class="api-docs-section" aria-labelledby="api-docs-how">
@@ -104,6 +110,16 @@
         <pre class="api-code"><code>saved_url=$(<span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span>)
 <span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">"$saved_url"</span> <span class="tok-flag">-o</span> whiteboard.jpg</code></pre>
       </section>
+      <section class="api-docs-section" aria-labelledby="api-docs-controls">
+        <h2 id="api-docs-controls">Camera settings</h2>
+        <p>Read the camera's supported controls, current values, ranges and menu options. Changes affect all viewers and future captures.</p>
+        <pre class="api-code"><code>GET /api/v1/cameras/{camera_id}/controls
+PATCH /api/v1/cameras/{camera_id}/controls
+POST /api/v1/cameras/{camera_id}/controls/reset</code></pre>
+        <p>PATCH and reset require an operator key in the <code>X-Camera-Control-Key</code> header. For example, switch to manual focus and set its value:</p>
+        <pre class="api-code"><code>{"values":{"focus_automatic_continuous":0,"focus_absolute":30}}</code></pre>
+        <p>The response contains values read back from the camera. API values use the camera's native integers: exposure uses 0.1 ms units, pan/tilt use arcseconds. The dashboard displays milliseconds and degrees. Reset restores camera defaults, which may include 60 Hz anti-flicker.</p>
+      </section>
     </main>
   </div>
 
@@ -116,6 +132,6 @@
     <div class="grid" id="recent-grid"></div>
   </div>
 
-  <script type="module" src="dashboard/assets/app.js?v=theme-2"></script>
+  <script type="module" src="dashboard/assets/app.js?v=settings-layout-6"></script>
 </body>
 </html>

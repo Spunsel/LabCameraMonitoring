@@ -30,6 +30,7 @@ htmlcov/
 # ── Secrets / production config ───────────────────────────────────────────────
 config/production.yaml
 config/secrets.yaml
+deployment/systemd/setup-controls.sh
 .env
 *.key
 *.pem

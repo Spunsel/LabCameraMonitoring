@@ -5,6 +5,7 @@ Start locally:
 
 Environment variables:
     CAMERA_SERVICE_CONFIG   path to YAML config (default: config/development.yaml)
+    CAMERA_SERVICE_CONTROLS_TOKEN   operator key for camera setting changes
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from pydantic import BaseModel
 
 from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
+from api.controls import CameraControls, router as controls_router
 from api.settings import load_settings
 from api import stream_metrics
 
@@ -58,6 +60,7 @@ async def lifespan(app: FastAPI):
     global _cameras, _store, _start_time
     _start_time = _time.monotonic()
     _cameras = build_camera_registry(settings)
+    app.state.camera_controls = CameraControls(settings)
     _store = CaptureStore(settings.storage.captures_dir)
     try:
         removed_events, removed_images = _store.prune_expired()
@@ -95,6 +98,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.include_router(controls_router)
 app.mount(
     "/dashboard/assets",
     StaticFiles(directory=DASHBOARD_DIR / "assets"),

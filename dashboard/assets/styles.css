@@ -313,7 +313,7 @@ body.history-view.history-stacked { height: auto; }
   }
 }
 
-@media (max-width: 44rem) {
+@media (max-width: 54rem) {
   .hdr { justify-content: center; }
   .hdr-left, #uptime { display: none; }
   .hdr-right {
@@ -324,7 +324,7 @@ body.history-view.history-stacked { height: auto; }
   .theme-toggle { margin-left: 0; }
 }
 
-@media (max-width: 30rem) {
+@media (max-width: 38rem) {
   .hdr { padding-left: 0.75rem; padding-right: 0.75rem; }
   .hdr-right { right: 0.75rem; }
   .tab-btn {
@@ -381,6 +381,121 @@ body.history-view.history-stacked { height: auto; }
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.4rem;
+}
+
+/* Settings: two camera columns with independent collapsible control sections. */
+.camera-controls {
+  font-family: 'Adwaita Sans', sans-serif;
+  container-type: inline-size;
+}
+.camera-settings-access {
+  --access-row-height: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  background: var(--header-bg);
+  font-family: 'Adwaita Sans', sans-serif;
+}
+.camera-settings-title { display: flex; align-items: center; align-self: stretch; min-height: var(--access-row-height); gap: 0.65rem; margin-right: auto; color: var(--strong-text); }
+.camera-settings-mode { --mode-icon: url('icons/lock.svg'); display: inline-flex; align-items: center; gap: 0.35rem; color: var(--focus-color); font-size: 12px; white-space: nowrap; }
+.camera-settings-mode[data-mode="edit"] { --mode-icon: url('icons/pencil.svg'); color: var(--status-good); }
+.camera-settings-mode-icon { width: 16px; height: 16px; flex-shrink: 0; background-color: currentColor; -webkit-mask: var(--mode-icon) center / contain no-repeat; mask: var(--mode-icon) center / contain no-repeat; }
+.camera-controls-access { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--access-row-height); gap: 0.5rem; max-width: 36rem; }
+.camera-controls-access label { font-size: 12px; }
+.camera-controls-access input { flex: 1; min-width: 7rem; }
+.camera-settings-access.is-locked .camera-controls-status { flex-basis: 100%; }
+#settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#settings-grid > div { min-width: 0; }
+.camera-settings-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.4rem; }
+.camera-settings-header .cam-lbl { margin: 0; }
+.camera-settings-refresh { display: inline-flex; align-items: center; gap: 0.35rem; }
+.camera-settings-refresh img { width: 14px; height: 14px; filter: brightness(0) invert(1); }
+:root[data-theme="light"] .camera-settings-refresh img { filter: brightness(0) opacity(0.75); }
+.camera-controls-section { border-bottom: 1px solid var(--panel-border); }
+.camera-controls-section > summary { display: flex; align-items: center; gap: 0.4rem; padding: 0.95rem 0; cursor: pointer; list-style: none; }
+.camera-controls-section > summary::-webkit-details-marker { display: none; }
+.camera-controls-section > summary img { width: 16px; height: 16px; flex-shrink: 0; filter: invert(1); opacity: 0.85; }
+:root[data-theme="light"] .camera-controls-section > summary img { filter: none; }
+.camera-controls-section > summary .camera-section-collapse,
+.camera-controls-section[open] > summary .camera-section-expand { display: none; }
+.camera-controls-section[open] > summary .camera-section-collapse { display: block; }
+.camera-controls-section h3 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--strong-text); }
+.camera-controls-section > .camera-controls-grid { padding-bottom: 0.95rem; }
+.camera-controls-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem 1.25rem; }
+.camera-control-row { min-width: 0; }
+.camera-control-full { grid-column: 1 / -1; }
+.camera-control-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.25rem; }
+.camera-control-label { color: var(--strong-text); font-size: 12px; }
+.camera-control-inputs { display: flex; align-items: center; gap: 0.4rem; min-height: 1.9rem; }
+.camera-control-slider { flex: 1; min-width: 0; width: 100%; }
+.camera-controls input { accent-color: var(--focus-color); }
+.camera-control-number { width: 4.8rem; flex-shrink: 0; box-sizing: border-box; }
+.camera-control-unit, .camera-control-hint { color: var(--muted-text); font-size: 11px; }
+.camera-controls input[type="checkbox"] {
+  appearance: none;
+  width: 2rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  margin: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 1rem;
+  background: var(--control-bg);
+  cursor: pointer;
+  position: relative;
+}
+.camera-controls input[type="checkbox"]::before {
+  content: '';
+  position: absolute;
+  width: 0.75rem;
+  height: 0.75rem;
+  top: calc(50% - 0.375rem);
+  left: 0.15rem;
+  border-radius: 50%;
+  background: var(--muted-text);
+}
+.camera-controls input[type="checkbox"]:checked { border-color: var(--focus-color); background: var(--focus-color); }
+.camera-controls input[type="checkbox"]:checked::before { left: auto; right: 0.15rem; background: var(--page-bg); }
+.camera-control-auto { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.35rem; }
+.camera-control-auto .camera-control-header { margin: 0; }
+.camera-control-auto .camera-control-label { color: var(--muted-text); font-size: 11px; }
+.camera-control-auto .camera-control-inputs { min-height: 1.25rem; }
+.camera-control-auto .camera-control-hint { flex-basis: 100%; text-align: right; }
+.camera-control-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.3rem 0.6rem; }
+.camera-control-line.camera-control-full { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.camera-control-line .camera-control-header { margin: 0; }
+.camera-control-line .camera-control-inputs { justify-content: flex-end; }
+.camera-control-line .camera-control-hint { grid-column: 1 / -1; }
+:is(.camera-controls, .camera-settings-access) input:not([type="range"]):not([type="checkbox"]), .camera-controls select {
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  background: var(--control-bg);
+  color: var(--strong-text);
+  font: inherit;
+  font-size: 12px;
+  padding: 0.25rem 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+}
+.camera-controls select { width: 100%; }
+:is(.camera-controls, .camera-settings-access) :disabled { opacity: 0.55; cursor: default; }
+:is(.camera-controls, .camera-settings-access) :focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.camera-control-hint { display: block; }
+.camera-control-hint:empty, .camera-controls-status:empty { display: none; }
+.camera-controls-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.6rem; padding-top: 0.75rem; }
+.camera-controls-footer .camera-controls-status { flex: 1; }
+.camera-controls-status { margin: 0; font-size: 12px; color: var(--muted-text); overflow-wrap: anywhere; }
+:is(.camera-controls, .camera-settings-access) [hidden] { display: none; }
+@container (max-width: 380px) {
+  .camera-controls-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  #settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .camera-controls-access { flex: 1 1 100%; }
 }
 .cam-lbl-row .cam-lbl,
 .cap-col-hdr .cam-lbl { margin-bottom: 0; }
