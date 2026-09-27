@@ -240,10 +240,8 @@ body.history-view.history-stacked { height: auto; }
 }
 .cam-stats   { flex-shrink: 0; }
 .cam-divider { width: 1px; background: #444; margin: 0 0.75rem; flex-shrink: 0; }
-.cam-graph   { flex: 1; min-width: 0; }
-.cam-graph canvas { width: 100%; height: 80px; display: block; }
-#panel-stream .cam-graph { display: flex; align-items: center; }
-#panel-stream .cam-graph canvas { min-width: 0; }
+.cam-graph { flex: 1; min-width: 0; display: flex; align-items: center; }
+.cam-graph canvas { width: 100%; height: 80px; display: block; min-width: 0; }
 
 .cam-lbl-row {
   display: flex;
