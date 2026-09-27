@@ -8,24 +8,10 @@ document.querySelectorAll('.api-docs-base').forEach(el => {
   el.textContent = API_BASE_URL;
 });
 
-const themeButton = document.getElementById('theme-toggle');
-
-function updateThemeButton() {
-  const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-  const label = `Switch to ${nextTheme} theme`;
-  themeButton.setAttribute('aria-label', label);
-  themeButton.title = label;
-}
-
-themeButton.addEventListener('click', () => {
-  const nextTheme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-  document.documentElement.dataset.theme = nextTheme;
-  try { localStorage.setItem('camera-service-theme', nextTheme); } catch {}
-  updateThemeButton();
+document.addEventListener('camera-theme-change', () => {
   redrawStreamGraphs();
   redrawSnapshotGraphs();
 });
-updateThemeButton();
 
 let uptimeBaseSeconds = null;
 let uptimeBaseAt = null;
