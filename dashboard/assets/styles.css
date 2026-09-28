@@ -272,10 +272,10 @@ body.history-view.history-stacked { height: auto; }
 .history-summary-item strong { color: var(--strong-text); font-weight: normal; }
 
 .api-docs { width: 100%; max-width: 56rem; min-width: 0; margin: 0 auto 1.5rem; font-family: 'Adwaita Sans', sans-serif; }
-.api-docs h1 { color: var(--strong-text); font-size: 19px; line-height: 1.4; margin-bottom: 0.5rem; }
+.api-docs h1, .api-calls-heading h1 { color: var(--strong-text); font-size: 19px; line-height: 1.4; margin-bottom: 0.5rem; }
 .api-docs h2 { color: var(--strong-text); font-size: 14px; }
 .api-docs h3 { color: var(--docs-subheading); font-size: 12px; margin-top: 1.3rem; }
-.api-docs p { color: var(--docs-body); margin: 0.5rem 0 0.85rem; }
+.api-docs p, .api-calls-heading p { color: var(--docs-body); margin: 0.5rem 0 0.85rem; }
 .api-docs code { font-family: 'Adwaita Mono', monospace; }
 .api-docs p code { color: var(--docs-subheading); overflow-wrap: anywhere; }
 .api-docs-section {
@@ -361,7 +361,7 @@ body.history-view.history-stacked { height: auto; }
   border: 1px solid var(--panel-border);
   overflow: hidden;
 }
-.img-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 .cam-bottom {
   display: flex;
@@ -651,8 +651,8 @@ body.history-view.history-stacked { height: auto; }
 .copy-btn.copy-failed  { color: var(--status-bad); border-color: var(--status-bad); }
 
 /* The API workspace uses only the space left below the header and its gap. */
-body:has(#panel-api.active) { height: 100vh; height: 100dvh; min-height: 0; }
-#panel-api.active { display: flex; flex: 1 1 0; min-height: 0; }
+body:has(#panel-api-console.active) { height: 100vh; height: 100dvh; min-height: 0; }
+#panel-api-console.active { display: flex; flex: 1 1 0; min-height: 0; }
 .api-console { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; max-width: 86rem; margin: 0 auto; font-family: 'Adwaita Sans', sans-serif; }
 .api-console h2 { color: var(--strong-text); font-size: 14px; }
 .api-console p, .api-console small { overflow-wrap: anywhere; }
@@ -696,9 +696,47 @@ body:has(#panel-api.active) { height: 100vh; height: 100dvh; min-height: 0; }
 .api-console-feedback:empty { margin-top: 0; }
 .api-console [hidden] { display: none; }
 @media (max-width: 850px) {
-  body:has(#panel-api.active) { height: auto; min-height: 100vh; min-height: 100dvh; }
-  #panel-api.active { display: block; flex: 0 0 auto; }
+  body:has(#panel-api-console.active) { height: auto; min-height: 100vh; min-height: 100dvh; }
+  #panel-api-console.active { display: block; flex: 0 0 auto; }
   .api-console { display: block; }
   .api-console-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: max-content; align-items: start; }
   .api-console-card { max-height: none; overflow: visible; }
 }
+
+
+/* Capture mode uses the same collapsible section and paired fields as image controls. */
+.camera-capture-mode .camera-control-label { display: block; margin-bottom: 0.4rem; }
+.camera-capture-mode-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0 0 0.8rem; }
+.camera-capture-mode-actions .cap-btn { flex-shrink: 0; }
+.camera-capture-mode form > .camera-controls-status:not(:empty) { margin-bottom: 0.8rem; }
+
+/* Recent API activity: one full-width card, shared theme tokens. */
+.api-calls { padding: 1rem; border: 1px solid var(--panel-border); border-radius: 3px; background: var(--header-bg); min-width: 0; }
+.api-calls-heading h1, .api-calls-heading p, .api-calls-meta, .api-calls-note, .api-calls-access p { font-family: 'Adwaita Sans', sans-serif; }
+.api-calls-heading, .api-calls-meta, .api-calls-access, .api-calls-access form { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem 1rem; }
+.api-calls-heading, .api-calls-meta { justify-content: space-between; }
+.api-calls-meta, .api-calls-note, .api-calls-access p { color: var(--muted-text); font-size: .75rem; }
+.api-calls-access { margin: 1rem 0; }
+.api-calls input, .api-calls select { font: inherit; color: var(--body-text); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 3px; padding: .3rem .5rem; }
+.api-calls input { width: 15rem; max-width: 100%; }
+.api-calls [hidden] { display: none !important; }
+.api-calls :focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.api-calls-table-wrap { margin-top: .7rem; overflow-x: auto; }
+.api-calls-table { width: 100%; border-collapse: collapse; font-size: .75rem; text-align: left; }
+.api-calls-table th { color: var(--muted-text); font-weight: 500; }
+.api-calls-table th, .api-calls-table td { padding: .6rem .65rem; border-bottom: 1px solid var(--row-border); vertical-align: top; }
+.api-calls-table th, .api-calls-table td:first-child, .api-calls-method, .api-calls-duration { white-space: nowrap; }
+.api-calls-table td:nth-child(3) { min-width: 15rem; max-width: 34rem; overflow-wrap: anywhere; }
+.api-calls-table td:last-child { min-width: 12rem; max-width: 25rem; overflow-wrap: anywhere; }
+.api-calls-table summary { cursor: pointer; }
+.api-calls-table details div { margin-top: .4rem; color: var(--muted-text); font-size: .7rem; }
+.api-calls-table a { color: var(--syntax-method); }
+.api-calls-empty { padding: 2rem .65rem; color: var(--muted-text); }
+.api-calls-note { margin-top: 1rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 48rem) {
+  .tabs .tab-label { display: none; }
+  .tabs .tab-icon { display: block; width: 1.5rem; height: 1.5rem; }
+  .tabs .tab-btn { width: 2rem; padding: 0; }
+}
+#api-console, #api-calls { scroll-margin-top: 6rem; }

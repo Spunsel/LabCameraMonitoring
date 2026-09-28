@@ -43,6 +43,7 @@ export async function measureSnapshot(id) {
   try {
     const r = await fetch(`${BASE}/api/v1/cameras/${id}/snapshot.jpg`, {
       cache: 'no-store',
+      headers: { 'X-Camera-Background': '1' },
     });
     firstByteMs = performance.now() - t0;
 

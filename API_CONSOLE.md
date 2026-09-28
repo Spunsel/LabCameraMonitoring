@@ -1,58 +1,100 @@
-# Interactive API console
+# Interactive API Console
 
-Open the API tab to select an operation and, where applicable, a camera. The
-console builds the request URL and a Bash curl command as you edit the fields.
-No request runs until you click the play icon in the endpoint box. Live MJPEG playback remains
-on the Stream tab; the console handles finite image, JSON and text responses.
+Reviewed against the packaged source on **2026-09-28**.
+Open **API Console** at `dashboard#api-console`; `#api` remains a compatibility
+alias. Select an operation and, when applicable, a camera. Editing fields builds
+the request URL and a Bash curl command; nothing runs until the play button is
+clicked. The button sends an HTTP request, not a shell command.
 
-Supported operations include current snapshots, saved captures and metadata,
-capture listings/storage, camera settings (read, change, reset, access check),
-camera listings, service status, stream metrics, health, readiness and the
-OpenAPI specification (`GET /openapi.json`). Select **Get API specification**
-to inspect the current schema and copy the request URL, curl command or JSON.
+## Available operations
 
-Copy icons overlay the top-right of the URL, curl command and response boxes,
-using the History copy-button style. Successful copies briefly show a tick.
-The play button submits the selected HTTP request; it does not run a shell.
+| Operation | Method and path |
+| --- | --- |
+| Get snapshot image | `GET /api/v1/cameras/{camera_id}/snapshot.jpg` |
+| Save snapshot on server | `POST /api/v1/cameras/{camera_id}/captures` |
+| List saved captures | `GET /api/v1/captures?limit=N` |
+| Get saved image | `GET /api/v1/captures/{stem}.jpg` |
+| Get capture metadata | `GET /api/v1/captures/{stem}.json` |
+| Read camera settings | `GET /api/v1/cameras/{camera_id}/controls` |
+| Change camera settings | `PATCH /api/v1/cameras/{camera_id}/controls` |
+| Restore camera defaults | `POST /api/v1/cameras/{camera_id}/controls/reset` |
+| Check operator key | `GET /api/v1/cameras/{camera_id}/controls/access` |
+| List cameras | `GET /api/v1/cameras` |
+| Get service status | `GET /api/v1/status` |
+| Get stream metrics | `GET /api/v1/stream-metrics` |
+| Get capture storage statistics | `GET /api/v1/captures/stats` |
+| Check API health | `GET /healthz` |
+| Get API specification | `GET /openapi.json` |
+| Check camera readiness | `GET /readyz` |
 
-The response panel shows the executed method/URL, HTTP status, elapsed request
-and download time, body size, response headers available to the browser, and
-formatted JSON, plain text or a JPEG preview. Curl commands and valid JSON
-responses use the same syntax colors as Docs in both themes. Highlighting uses
-text nodes and spans; copied commands and responses remain plain text. Invalid
-JSON and non-JSON responses stay plain text. HTTP error bodies remain visible.
-Saved-capture responses expose the returned image URL. JPEG responses can be
-downloaded; text/JSON responses can be copied. Responses are rendered as text,
-never executed as HTML. The response URL identifies the request even if the
-request fields have since changed.
+The operation selector does not expose every API endpoint. Saved configurations,
+undo and capture-mode APIs exist but are operated from Settings; recent request
+history is on [API CALLS](API_CALLS.md). Continuous MJPEG playback is on Stream.
+The full endpoint catalog is in [README.md](README.md).
 
-Settings writes and key checks require an operator key. Enter it in the console's
-password field; it is separate from the Settings page unlock and is kept only
-in memory for this page session. Clear key removes it. Read-only requests and
-snapshot capture requests do not send the key. Copied curl commands prompt for
-the key in Bash instead of embedding it. Browser requests reuse the existing website login. The console does not add
-HTTP Basic credentials to copied commands. If your external client needs them,
-supply them separately from the camera operator key. Operation and Camera
-selectors appear side by side for camera-specific requests.
+Snapshot GET returns a frame from the running source, without retaining it on
+the API. Saved capture POST has no request body and returns a 201 plain-text URL
+and `Location`. Captures become eligible for cleanup after 48 hours; actual
+removal happens at a successful cleanup. Readiness is a source availability
+check, not a guarantee of fresh usable frames. Status FPS is the live target;
+stream metrics supply a separate observed FPS estimate.
 
-PATCH bodies use native API integers, not display units: exposure is in 0.1 ms,
-and pan/tilt are in arcseconds. Read camera settings first to inspect ranges,
-menus and automatic/manual dependencies. Reset requires confirmation. Writes
-affect all viewers. Cancel and the 60-second timeout stop waiting in the browser;
-they do not undo work that the server may already have performed.
+## Request and response interface
 
-Navigation order is Stream, Snapshots, History, Docs, API Console. Settings is
-always an icon beside the theme toggle. The header remains a single row; page
-labels switch to icons on narrow screens. The active link uses aria-current.
+Operation and Camera selectors share a row for camera-specific requests. The
+run button sits in the endpoint box. Copy buttons overlay the URL, curl and
+response boxes; successful copies briefly show a tick. Wide screens show two
+cards side by side; stacked cards grow with their content and use page scrolling.
+The JSON response code box keeps its 15-line height limit and can scroll.
+
+The response area shows the executed method/URL, HTTP status, elapsed browser
+request time through body download, body size, available response headers and a
+formatted JSON/text response or JPEG preview. The elapsed time is one total,
+not separate TTFB and download-only measurements. It differs from API CALLS'
+server-side duration. Saved-capture responses expose an image link. JPEGs can
+be downloaded; text and JSON can be copied.
+
+Code highlighting uses text nodes; response text is not executed as HTML.
+Malformed JSON is shown as plain text. HTTP error bodies remain visible. The
+executed URL remains visible even after fields change.
+
+## Access and write behavior
+
+Within the current operation list, settings PATCH, reset and key-check requests
+need the shared operator key. The password field is separate from Settings and
+API CALLS. It stays in page memory; **clear key**, reload or page exit clears it.
+Switching dashboard tabs alone does not clear it. The other offered operations,
+including saving a snapshot, do not send the operator key.
+
+Generated curl commands prompt for the operator key in Bash rather than embedding
+it. Browser requests reuse website authentication. Copied commands do not include
+website credentials; supply those separately if required by Nginx.
+
+PATCH uses native V4L2 integers:
+
+```json
+{"values":{"focus_automatic_continuous":0,"focus_absolute":30}}
+```
+
+Exposure is in 0.1 ms units; pan/tilt use arcseconds (3600 per degree). Read the
+camera settings first for limits, menus and auto/manual dependencies. Reset asks
+for confirmation and applies eligible **driver-reported image-control defaults**;
+it does not restore a previous custom setup or reset resolution/FPS. The console
+operation is still labelled “Restore camera defaults”; the Settings footer uses
+“restore defaults.”
+
+Writes affect all viewers. Cancellation and the 60-second timeout stop the
+browser waiting; they cannot undo changes already applied. Check readback before
+retrying a timed-out write. See [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md).
 
 ## Deployment and checks
 
-Deploy the updated API and dashboard files, restart `camera-api.service`,
-then hard-refresh the dashboard. No new Python dependencies are required.
-Capture retrieval uses the saved filename with `.jpg` or `.json`. Capture
-subdirectories are ignored by listing, storage statistics and cleanup.
+For a backend/frontend feature update, deploy matching API and dashboard files,
+restart `camera-api.service` if Python files changed, then hard-refresh the
+browser. Markdown-only changes require neither action. There are no new Python
+dependencies for this console.
 
 Run `node tests/test_api_console.mjs` for request construction, shell quoting,
-validation and response handling tests. The test uses a DOM stand-in and mocked
-HTTP responses. It does not execute commands against cameras or provide visual
-browser coverage.
+validation and response handling. It uses a DOM stand-in and mocked responses,
+not physical cameras or visual browser rendering. See
+[TESTDOCUMENTATION.md](TESTDOCUMENTATION.md) for full checks.

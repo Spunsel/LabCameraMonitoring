@@ -1,4 +1,5 @@
-import { BASE } from './common.js';
+import { BASE, reconnectCameraPreviews } from './common.js';
+import { CaptureModePanel } from './capture-mode.js';
 
 // One model per camera, with operator access shared across the Settings page.
 const models = new Map();
@@ -8,7 +9,7 @@ let panelSequence = 0;
 
 async function request(cameraId, suffix = '', options = {}, key = operatorKey) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
+  const timer = setTimeout(() => controller.abort(), suffix === '/capture-mode' ? 90_000 : 60_000);
   try {
     const response = await fetch(`${BASE}/api/v1/cameras/${encodeURIComponent(cameraId)}/controls${suffix}`, {
       ...options, cache: 'no-store', signal: controller.signal,
@@ -23,6 +24,7 @@ async function request(cameraId, suffix = '', options = {}, key = operatorKey) {
       const error = new Error(typeof detail === 'string' ? detail
         : detail?.message || `Request failed (HTTP ${response.status}). Refresh settings and try again.`);
       error.state = detail?.state;
+      error.captureMode = detail?.capture_mode;
       error.status = response.status;
       throw error;
     }
@@ -50,6 +52,8 @@ class CameraControlState {
     this.busy = false;
     this.message = '';
     this.error = false;
+    this.captureMode = null;
+    this.captureModeError = '';
     this.configs = [];
     this.undoToken = '';
     this.undoRevision = '';
@@ -67,6 +71,7 @@ class CameraControlState {
       this.undoRevision = '';
     }
     if (data?.configs) this.configs = data.configs;
+    if (data?.capture_mode) this.captureMode = data.capture_mode;
   }
 
   async perform(suffix = '', options = {}) {
@@ -91,10 +96,21 @@ class CameraControlState {
       if (options.method && !this.data) {
         try { this.accept(await request(this.cameraId)); } catch {}
       }
+      if (error.captureMode) this.captureMode = error.captureMode;
       this.error = true;
       this.message = error.message;
       return false;
     } finally {
+      if (!options.method || suffix === '/capture-mode') {
+        try {
+          this.captureMode = await request(this.cameraId, '/capture-mode');
+          this.captureModeError = '';
+        } catch (error) {
+          this.captureMode = null;
+          this.captureModeError = error.message;
+        }
+      }
+      if (suffix === '/capture-mode') reconnectCameraPreviews(this.cameraId);
       this.busy = false;
       updateAllPanels();
     }
@@ -350,7 +366,10 @@ export class CameraControlsPanel {
     const restore = element('div', 'camera-controls-restore-actions');
     restore.append(this.resetButton, this.undoButton);
     footer.append(configs, restore, this.status);
-    this.root.append(this.sections, footer);
+    this.root.append(this.sections);
+    this.capturePanel = new CaptureModePanel(this.root, cameraId, this.id, change =>
+      this.model.perform('/capture-mode', { method: 'PATCH', body: JSON.stringify(change) }));
+    this.root.append(footer);
     host.append(this.root);
     this.render();
   }
@@ -469,6 +488,7 @@ export class CameraControlsPanel {
       controls.forEach(c => this.addControl(c));
       this.arrangeControls();
     }
+    this.capturePanel.render(this.model.captureMode, unlocked, busy, this.model.captureModeError);
     this.root.setAttribute('aria-busy', String(busy));
     this.refreshButton.disabled = busy;
     this.resetButton.disabled = !unlocked || busy || !controls.length;

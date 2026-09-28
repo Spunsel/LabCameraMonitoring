@@ -26,8 +26,10 @@ from fastapi.staticfiles import StaticFiles
 from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
 from api.controls import CameraControls, router as controls_router
+from api.capture_modes import CaptureModes, router as capture_modes_router
 from api.settings import load_settings
 from api import stream_metrics
+from api.activity import ActivityStore, ActivityMiddleware, router as activity_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -58,8 +60,10 @@ async def _capture_cleanup_loop(store: CaptureStore) -> None:
 async def lifespan(app: FastAPI):
     global _cameras, _store, _start_time
     _start_time = _time.monotonic()
+    app.state.api_activity = ActivityStore()
     _cameras = build_camera_registry(settings)
     app.state.camera_controls = CameraControls(settings)
+    app.state.capture_modes = CaptureModes(app.state.camera_controls)
     _store = CaptureStore(settings.storage.captures_dir)
     try:
         removed_captures, removed_images = _store.prune_expired()
@@ -81,6 +85,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await app.state.capture_modes.close()
         cleanup_task.cancel()
         try:
             await cleanup_task
@@ -97,7 +102,10 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.add_middleware(ActivityMiddleware)
+app.include_router(activity_router)
 app.include_router(controls_router)
+app.include_router(capture_modes_router)
 app.mount(
     "/dashboard/assets",
     StaticFiles(directory=DASHBOARD_DIR / "assets"),
@@ -271,6 +279,7 @@ async def create_capture(camera_id: str, request: Request) -> PlainTextResponse:
         result: CaptureResult = await _store.capture(camera_id=camera_id, camera=camera)
     except RuntimeError:
         raise HTTPException(status_code=503, detail=f"Camera {camera_id!r} failed to capture")
+    request.state.activity_capture = result.filename
     image_url = _public_capture_url(request, result.image_url)
     return PlainTextResponse(
         content=image_url + "\n",
@@ -320,14 +329,20 @@ async def get_stream_metrics() -> dict[str, Any]:
 
 @app.get("/api/v1/status", tags=["monitoring"])
 async def get_status() -> dict[str, Any]:
-    """Camera availability and config. Latency is measured client-side."""
+    """Camera availability and live capture mode. Latency is measured client-side."""
     cam_ids = list(_cameras)
     available = await asyncio.gather(*(_cameras[c].is_available() for c in cam_ids))
+    live_modes = await asyncio.gather(*(app.state.capture_modes.current(cam_id)
+        if settings.cameras[cam_id].source == "v4l2" else asyncio.sleep(0, result=None)
+        for cam_id in cam_ids))
+    mode_by_camera = dict(zip(cam_ids, live_modes))
     camera_statuses = {
         cam_id: {
             "available": avail,
-            "resolution": f"{cfg.width}x{cfg.height}" if (cfg := settings.cameras.get(cam_id)) else None,
-            "fps": cfg.fps if cfg else None,
+            "resolution": (f"{mode['width']}x{mode['height']}" if (mode := mode_by_camera[cam_id])
+                           else f"{cfg.width}x{cfg.height}" if (cfg := settings.cameras[cam_id]).source != "v4l2" else None),
+            "fps": mode["fps"] if mode else settings.cameras[cam_id].fps
+                   if settings.cameras[cam_id].source != "v4l2" else None,
         }
         for cam_id, avail in zip(cam_ids, available)
     }

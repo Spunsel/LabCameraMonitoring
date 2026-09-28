@@ -23,7 +23,7 @@ function formatBytes(bytes) {
 
 async function pollStorageSummary() {
   try {
-    const r = await fetch(`${BASE}/api/v1/captures/stats`);
+    const r = await fetch(`${BASE}/api/v1/captures/stats`, { headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     const summary = await r.json();
     jpgBytesEl.textContent = formatBytes(summary.jpg_bytes);
@@ -133,7 +133,7 @@ export async function pollCaptures() {
   pollStorageSummary();
   let data;
   try {
-    const r = await fetch(`${BASE}/api/v1/captures?limit=50`);
+    const r = await fetch(`${BASE}/api/v1/captures?limit=50`, { headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     data = await r.json();
   } catch { return; }

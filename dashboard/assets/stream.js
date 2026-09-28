@@ -1,4 +1,4 @@
-import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls } from './common.js';
+import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls, reconnectCameraPreviews, retryLivePreview } from './common.js';
 import { drawBarGraph, STREAM_GRAPH_OPTS } from './charts.js';
 
 const streamHist = {};
@@ -28,6 +28,7 @@ CAMERAS.forEach(id => {
       </div>
     </div>`;
   sg.appendChild(d);
+  retryLivePreview(document.getElementById(`stream-img-${id}`));
 });
 
 function buildTimestampedHistory(history, intervalSeconds) {
@@ -47,7 +48,7 @@ const STATE_CLS = { live: 'g', starting: 'm', stale: 'w', offline: 'b', disconne
 export async function pollStreamMetrics() {
   let data;
   try {
-    const r = await fetch(`${BASE}/api/v1/stream-metrics`);
+    const r = await fetch(`${BASE}/api/v1/stream-metrics`, { headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     data = await r.json();
   } catch {
@@ -95,6 +96,8 @@ export async function pollStreamMetrics() {
   }
 }
 
+const captureModes = new Map();
+
 export function updateStreamStatus(data) {
   if (!data) {
     CAMERAS.forEach(id => {
@@ -104,6 +107,11 @@ export function updateStreamStatus(data) {
     return;
   }
   for (const [id, cam] of Object.entries(data.cameras)) {
+    const mode = `${cam.resolution}:${cam.fps}`;
+    if (cam.available && cam.resolution) {
+      if (captureModes.has(id) && captureModes.get(id) !== mode) reconnectCameraPreviews(id);
+      captureModes.set(id, mode);
+    }
     document.getElementById('dot-' + id).className = 'dot ' + (cam.available ? 'on' : 'off');
     document.getElementById('stream-res-' + id).textContent = cam.resolution ?? '—';
   }

@@ -1,19 +1,59 @@
 # Project Roadmap
 
 Camera monitoring service for the BPM Lab at TU München.
-Tracks every milestone from initial scaffold to full production deployment.
+Reviewed against the packaged source on **2026-09-28**. The current implementation
+status below is distinct from the historical lab milestones that follow. A
+feature being present in this ZIP does not establish that the latest version
+is deployed or visually verified on the lab server.
+
+## Current implementation
+
+| Area | Packaged status |
+| --- | --- |
+| Camera gateway | Whiteboard and robot; local µStreamer adapters and mock sources |
+| Snapshots and storage | Current JPEG GET, bodyless saved-capture POST, flat JPEG/JSON pairs, 48-hour retention |
+| Dashboard | Stream, Snapshots, History, Docs, API Console, API CALLS; icon-only Settings and theme toggle |
+| Measurements | Browser snapshot timings; header-only stream collector; observed FPS estimate |
+| Image settings | Shared operator key, supported V4L2 controls and driver-default reset |
+| Saved configurations | Named per-camera image settings persisted on disk |
+| Undo | One preceding image-control mutation, protected by a private token and stale-state checks |
+| Capture mode | Supported integer MJPEG resolution/FPS pairs; optional installed helper, one-camera restart and rollback |
+| API CALLS | Protected 500-record in-memory history, incremental visible-page updates and 25/50/100 displayed rows |
+| Automated checks | 82 backend tests and four JS suites passed during the API CALLS implementation |
+
+## Remaining validation and scope
+
+- Confirm latest deployment on lab, including operator access and capture-mode
+  helper/drop-ins if those features are enabled.
+- Verify current browser layout at wide/narrow sizes in both themes.
+- Verify physical camera changes, restoration and mode restart/recovery.
+- Compare live snapshot/stream performance before and after changes; the recorded
+  request-recorder benchmark is synthetic.
+- Individual revocable keys/accounts, persistent request history, settings-change
+  history, timed capture sessions and experiment grouping are not implemented.
+  These are scope boundaries, not scheduled commitments.
+
+See [TESTDOCUMENTATION.md](TESTDOCUMENTATION.md) for checks,
+[README.md](README.md) for the current API and deployment, and
+[CHANGELOG.md](CHANGELOG.md) for changes.
+
+## Historical lab milestones — 2026-09-18
+
+The following record preserves the original setup sequence. Camera counts,
+image sizes, example resolutions, test totals and PIDs describe that period,
+not the present runtime. The latest supplied driver output on 2026-09-28 reports
+1920×1080 MJPEG at 30 FPS on both cameras; the earlier 720p-only assumption below
+was not a hard device limit.
 
 ---
 
-## Legend
+### Historical notation
 
-| Symbol | Meaning |
-|---|---|
-| ✅ | Completed |
+✅ marks a completion reported during the original lab setup.
 
 ---
 
-## Step 1 — Local scaffold and mock camera API ✅
+### Step 1 — Local scaffold and mock camera API ✅
 
 **Goal:** Build and test the complete API locally without any physical hardware.
 
@@ -21,34 +61,34 @@ Tracks every milestone from initial scaffold to full production deployment.
 - [x] `api/settings.py` — YAML config loader (Pydantic-settings)
 - [x] `api/cameras.py` — Camera abstraction: `MockCameraSource` and `UStreamerCameraSource`
 - [x] `api/captures.py` — Event capture logic and disk storage
-- [x] `api/main.py` — FastAPI app with all endpoints
+- [x] `api/main.py` — initial FastAPI app; current routers are split across modules
 - [x] `config/development.yaml` — mock camera config (safe to commit)
 - [x] `config/production.example.yaml` — template for real lab config
 - [x] `deployment/systemd/` — systemd unit files
 - [x] `deployment/nginx/` — Nginx reverse proxy config
-- [x] `tests/` — 20 automated tests (all green)
+- [x] `tests/` — initial 20 automated tests (historical result)
 - [x] Git repository initialised
 
 **Verified:** `pytest` → 20/20 passed. `curl /healthz` → `{"status":"ok"}`. Snapshot served from mock fixture.
 
 ---
 
-## Step 2 — Hardware inspection on lab.bpm.in.tum.de ✅
+### Step 2 — Hardware inspection on lab.bpm.in.tum.de ✅
 
 **Goal:** Understand what is physically connected and what needs fixing before deployment.
 
 - [x] SSH into `lab.bpm.in.tum.de`
 - [x] `lsusb` — one StreamCam found: `046d:0893`, serial `DA702655`
-- [x] `lsusb -t` — camera on **USB 2.0 (480M)** via VIA Labs hubs → max reliable resolution 1280×720
+- [x] `lsusb -t` — camera on **USB 2.0 (480M)** via VIA Labs hubs; 1280×720 was selected for initial testing
 - [x] `ls -l /dev/v4l/by-id/` — stable device path confirmed: `usb-046d_Logitech_StreamCam_DA702655-video-index0`
 - [x] `v4l2-ctl --list-devices` → `Permission denied` (video group missing)
 - [x] `groups` → `lab wheel dialout` (no `video`)
 
-**Finding:** One camera connected. Permissions need fixing. USB 2.0 limits resolution to 1280×720.
+**Finding:** One camera connected. Permissions need fixing. 1280×720 was the initial tested mode, not a proven maximum supported resolution.
 
 ---
 
-## Step 3 — Fix camera permissions on lab ✅
+### Step 3 — Fix camera permissions on lab ✅
 
 **Goal:** Allow the `lab` user to open `/dev/video*` devices.
 
@@ -59,7 +99,7 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Step 4 — Deploy code and confirm first real snapshot ✅
+### Step 4 — Deploy code and confirm first real snapshot ✅
 
 **Goal:** Get a real JPEG frame from the physical camera through the full API stack.
 
@@ -78,7 +118,7 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Step 5 — systemd: automatic startup and crash recovery ✅
+### Step 5 — systemd: automatic startup and crash recovery ✅
 
 **Goal:** Both processes start on boot and restart automatically after any crash. The service no longer depends on an open SSH terminal.
 
@@ -99,7 +139,7 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Step 6 — Second camera (robot) ✅
+### Step 6 — Second camera (robot) ✅
 
 **Goal:** Add the robot camera so both cameras are available via the API.
 
@@ -123,13 +163,15 @@ Tracks every milestone from initial scaffold to full production deployment.
 
 ---
 
-## Progress summary
+## Historical progress summary
 
-```
-Step 1  ✅  Local scaffold + mock API
-Step 2  ✅  Hardware inspection
-Step 3  ✅  Permissions fix
-Step 4  ✅  First real snapshot (118 kB, 1280×720)
-Step 5  ✅  systemd — PID 1522/1524, survives reboot
-Step 6  ✅  Both cameras live (whiteboard 157 kB, robot 94 kB)
-```
+| Milestone | Reported result on 2026-09-18 |
+| --- | --- |
+| Local scaffold | Mock camera API and initial test suite |
+| Hardware and permissions | StreamCam found; video-group access enabled |
+| First real snapshot | 118 kB example JPEG at 1280×720 |
+| systemd | Automatic startup tested across a reboot |
+| Second camera | Whiteboard and robot answered separate snapshot requests |
+
+These results are retained as history; use the current checks to establish
+today's service state.

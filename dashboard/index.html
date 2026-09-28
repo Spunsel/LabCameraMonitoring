@@ -34,7 +34,8 @@
       <a href="#snapshots" class="tab-btn" data-tab="snapshots" aria-label="Snapshots" title="Snapshots"><img class="tab-icon" src="dashboard/assets/icons/snapshots.svg" alt=""><span class="tab-label">snapshots</span></a>
       <a href="#history"   class="tab-btn" data-tab="history" aria-label="History" title="History"><img class="tab-icon" src="dashboard/assets/icons/history.svg" alt=""><span class="tab-label">history</span></a>
       <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
-      <a href="#api" class="tab-btn" data-tab="api" aria-label="API Console" title="API Console"><img class="tab-icon" src="dashboard/assets/icons/api.svg" alt=""><span class="tab-label">API Console</span></a>
+      <a href="#api-console" class="tab-btn" data-tab="api-console" aria-label="API Console" title="API Console"><img class="tab-icon" src="dashboard/assets/icons/api.svg" alt=""><span class="tab-label">API Console</span></a>
+      <a href="#api-calls" class="tab-btn" data-tab="api-calls" aria-label="API Calls" title="API Calls"><img class="tab-icon" src="dashboard/assets/icons/api-calls.svg" alt=""><span class="tab-label">API CALLS</span></a>
     </nav>
     <div class="hdr-side hdr-right">
       <span id="uptime">—</span>
@@ -60,7 +61,7 @@
     <div class="grid" id="settings-grid"></div>
   </div>
 
-  <div class="panel" id="panel-api">
+  <div class="panel" id="panel-api-console">
     <main id="api-console" class="api-console" aria-label="API console">
       <div class="api-console-layout">
         <section class="api-console-card" aria-labelledby="api-request-title">
@@ -136,6 +137,33 @@
           </details>
         </section>
       </div>
+    </main>
+  </div>
+
+  <div class="panel" id="panel-api-calls">
+    <main id="api-calls" class="api-calls" aria-labelledby="api-calls-title">
+      <div class="api-calls-heading">
+        <div><h1 id="api-calls-title">Recent API calls</h1><p>Requests from the dashboard and external clients.</p></div>
+        <label>Rows <select data-calls="limit"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+      </div>
+      <div class="api-calls-access">
+        <form data-calls="form" autocomplete="off">
+          <label>Operator key <input data-calls="key" type="password" autocomplete="off" maxlength="512" required></label>
+          <button class="cap-btn" type="submit">unlock</button>
+        </form>
+        <button class="cap-btn" type="button" data-calls="lock" hidden>lock</button>
+        <p data-calls="status" role="status">Enter your operator key to view API activity.</p>
+      </div>
+      <div class="api-calls-meta"><span data-calls="since">Activity recorded since —</span><span data-calls="updated">Last updated —</span></div>
+      <div class="api-calls-table-wrap" tabindex="0" role="region" aria-label="Recent API requests">
+        <table class="api-calls-table">
+          <caption class="sr-only">Recent API requests, newest completed requests first</caption>
+          <thead><tr><th scope="col">Time</th><th scope="col">Method</th><th scope="col">Endpoint</th><th scope="col">Status</th><th scope="col">Duration</th><th scope="col">Result</th></tr></thead>
+          <tbody data-calls="rows"></tbody>
+        </table>
+        <p data-calls="empty" class="api-calls-empty">Unlock to view recent API requests.</p>
+      </div>
+      <p class="api-calls-note">Latest 500 requests retained until the API restarts. Successful background polling and continuous streams are excluded. Duration is measured on the server.</p>
     </main>
   </div>
 

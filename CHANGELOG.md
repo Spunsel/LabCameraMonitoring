@@ -1,41 +1,80 @@
 # Changelog
 
-All notable changes to the camera-service project are recorded here.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versions follow [Semantic Versioning](https://semver.org/).
+Reviewed on **2026-09-28**. The current packaged changes are listed under
+Unreleased. Older numbered headings are historical development milestones,
+not current package-version assertions: `pyproject.toml` and FastAPI metadata
+still declare `0.1.0`. Hardware observations, timing numbers and test counts in
+those historical entries describe their dates only.
 
 ---
 
 ## [Unreleased]
 
-### Capture storage and API console
-- [x] Capture creation uses a bodyless `POST /api/v1/cameras/{camera_id}/captures`. One camera is selected by the URL; each POST saves one JPEG and a same-named JSON sidecar and returns the complete image URL as plain text and in `Location`.
-- [x] Removed folder-based capture compatibility from the API, storage, history and documentation. Capture listing and retention now process top-level JPEG/JSON files only; existing subdirectories are left untouched.
-- [x] Added **Get API specification** (`GET /openapi.json`) to the interactive API console.
-- [x] Added `api.public_base_url` to configure the public Nginx prefix in returned image links. Updated the dashboard button, Docs tab, and API examples.
+### Documentation — 2026-09-28
+
+- Reviewed all 12 project/ZIP Markdown documents against current routes, frontend
+  behavior, settings models, deployment scripts and test files.
+- Corrected navigation/hashes, endpoint/auth listings, storage-path distinctions,
+  retention timing, missing development config and outdated test references.
+- Clarified ping-based readiness, latest-frame snapshot semantics, source target
+  FPS versus collector/browser FPS, and the different latency measurements.
+- Documented capture-mode proxy timeout and setup/policy/override behavior.
+- Separated historical milestones from current implementation and verification.
+- No Python, JavaScript, CSS, YAML, deployment script or dependency changes in
+  this documentation update.
 
 ### Added
-- [x] `GET /api/v1/status` — returns per-camera availability, resolution, fps, and API uptime; latency is measured client-side
-- [x] `GET /dashboard` — live monitoring dashboard at `https://lab.bpm.in.tum.de/cameras/dashboard`
-- [x] `dashboard/` — HTML, CSS, and JavaScript for the three dashboard sections: **STREAM**, **CAPTURES**, and **RECENT CAPTURES**
 
-### Fixed
-- [x] Replaced `assert _store is not None` (3×) with `HTTPException(503)` — asserts can be silently disabled with `python -O`
-- [x] `api/cameras.py`: removed unused `import asyncio`, `import time`, and `self._last_ok` tracking
-- [x] `readyz()`, `list_cameras()`, `get_status()` now ping both cameras in parallel via `asyncio.gather` instead of sequentially
+- **API CALLS** at `#api-calls`: operator-protected activity from eligible API
+  requests, with a 500-record in-memory buffer and 25/50/100-row display.
+- Protected `GET /api/v1/activity` with cursor/session-based incremental retrieval,
+  restart detection, request IDs and saved-capture links. Updates run only while
+  the page is unlocked and visible. No pause controls or filters.
+- API Console at `#api-console`, including request/curl/response copying and
+  `GET /openapi.json`. The old `#api` hash remains an alias.
+- Settings page with shared-key V4L2 image controls, per-camera cards, previews
+  outside the cards and collapsible sections.
+- Persistent named image configurations and one-step undo with stale-state checks.
+- Capture-mode resolution/integer-FPS discovery and a root-installed, fixed-purpose
+  helper for one-camera restart, validation, persistence and attempted rollback.
+- Header-only stream collector with five-second median/max/count slots, a recent
+  latency graph and observed FPS estimate.
+- Stream, Snapshots, History and Docs pages, responsive layout, dark/light themes,
+  theme-aware syntax highlighting and icon-only Settings navigation.
 
 ### Changed
-- [x] Dashboard CSS and JavaScript now live in `dashboard/assets/`; Adwaita Mono and the extracted History download icon are served from its `fonts/` and `icons/` folders
-- [x] Dashboard assets moved out of `api/dashboard.py` into `dashboard/`; FastAPI serves the page and its CSS/JS separately, including when the app is proxied under `/cameras`
-- [x] `GET /api/v1/captures`: now returns `list[dict]` with rich metadata (`camera_id`, `captured_at`, per-camera filenames and sizes in bytes); sorted by filename timestamp (most recent first); accepts `?limit=N` (1–50, default 10) — was `list[str]` capped at 20
-- [x] `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
-- [x] `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
-- [x] Dashboard: snapshot latency measured client-side via `performance.now()` + `await fetch()` TTFB; frame size from `blob.size` — no server-side measurement needed
-- [x] Dashboard: canvas bar chart — 30-minute sliding window (360 slots × 5 s), bars right-aligned and color-coded green/yellow/red, dashed white average line with value label
-- [x] Dashboard: `Cache-Control: no-store` on all snapshot responses → no `?t=` cache-buster needed in JS
-- [x] Dashboard: capture list polls `GET /api/v1/captures?limit=50` and filters per camera client-side; re-renders when the capture list changes; configurable rows (1–50, default 10) per camera table with immediate re-render on change
-- [x] Dashboard: polling intervals — status every 30 s, snapshot latency every 5 s, captures every 15 s
-- [x] Rsync-lab alias: corrected exclude from `LABSERVERCOMMANDS.md` → `LAB_COMMANDS.md`
+
+- Saved capture creation is a bodyless per-camera POST, returning a complete JPEG
+  URL as plain text and `Location`. Each capture is a flat JPEG/JSON pair.
+- Capture listing is newest first by filename time, limited to 1–50 complete
+  pairs across both cameras. Statistics count top-level JPG/JSON bytes.
+- Retention processes recognized pairs/orphan JPEGs older than 48 hours at startup
+  and hourly; directories are left untouched. Folder-based capture compatibility
+  was removed.
+- `api.public_base_url` supplies the public prefix for returned image URLs.
+- Public MJPEG streams in the supplied Nginx snippet bypass FastAPI and proxy
+  directly to µStreamer. No fixed end-to-end latency is implied.
+- Physical-camera status uses live resolution/desired FPS from µStreamer instead
+  of assuming that YAML values describe the active mode.
+- Dashboard assets are served from `dashboard/`; matching manual-transfer copies
+  are included in the ZIP's separate `JavaScript-text/` folder.
+
+### Access and recording
+
+- The operator model remains one shared environment key. Personal accounts and
+  individual revocation are not implemented.
+- Activity omits bodies, query strings, credentials, successful marked background
+  polls, continuous streams, static assets and its own endpoint. It is transient
+  operational history, not an exhaustive audit trail.
+- One API worker is required for coherent locks, undo and request history.
+
+### Verification
+
+- API CALLS implementation: 82 backend tests and all four JavaScript suites passed.
+- Full-app mock capture/activity check passed. Synthetic recording overhead was
+  about 11 microseconds per request locally; physical-camera performance and
+  visual browser rendering were not verified by that test run.
+- Current checks and limits: [TESTDOCUMENTATION.md](TESTDOCUMENTATION.md).
 
 ---
 
@@ -80,7 +119,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - systemd: moved `StartLimitBurst` and `StartLimitIntervalSec` from `[Service]` to `[Unit]` section (correct location per systemd spec).
 
 ### Security (observation — not actioned)
-- Lab server is receiving ongoing SSH brute-force attempts from external IPs. All are blocked. Worth reporting to lab admin for `fail2ban` or network-level SSH restriction.
+- The original setup notes recorded unsuccessful SSH login attempts. This is a historical observation, not a current security assessment or proof that all attempts are blocked.
 
 ---
 
@@ -121,7 +160,7 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 - **Interchangeable camera sources** (`MockCameraSource` / `UStreamerCameraSource`) so the full API can be developed and tested locally without physical cameras.
 - **Config-driven** (YAML + `pydantic-settings`): switching from mock to real camera requires only a config change, not a code change.
 - **`/dev/v4l/by-id/` paths** used in production config instead of `/dev/video0` (stable across reboots).
-- **1280×720 @ 15 fps** chosen for lab deployment because the StreamCam is on USB 2.0 (480M); 1080p is unreliable at that bandwidth.
+- **1280×720 @ 15 fps** chosen for initial deployment on the observed USB 2.0 connection. The initial notes treated 1080p as unreliable; later supplied output reports 1920×1080 MJPEG at 30 FPS, so this was not a permanent device limit.
 - **Nginx** as the only public-facing process; µStreamer and FastAPI bind to `127.0.0.1` only.
 
 ### Added
@@ -138,7 +177,7 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 - `config/production.example.yaml` — template for the real lab config; committed but real file is gitignored.
 - `deployment/systemd/camera-capture@.service` — parameterized systemd unit for µStreamer (one instance per camera).
 - `deployment/systemd/camera-api.service` — systemd unit for the FastAPI service.
-- `deployment/nginx/camera-api.conf` — Nginx reverse proxy config (TLS, auth, MJPEG streaming, HTTP→HTTPS redirect).
+- `deployment/nginx/camera-api.conf` — Nginx camera routing snippet for the existing server. TLS, authentication and redirects are responsibilities of the surrounding Nginx configuration.
 - `tests/fixtures/whiteboard.jpg` — 640×480 synthetic JPEG fixture (dark blue, generated with Pillow).
 - `tests/fixtures/robot.jpg` — 640×480 synthetic JPEG fixture (dark red, generated with Pillow).
 - `tests/conftest.py` — shared pytest fixtures; sets `CAMERA_SERVICE_CONFIG` and overrides captures directory to a temp path.
@@ -152,7 +191,7 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 ### Hardware findings (lab.bpm.in.tum.de — 2026-09-18)
 - One StreamCam connected: serial `DA702655`
 - Stable device path: `/dev/v4l/by-id/usb-046d_Logitech_StreamCam_DA702655-video-index0`
-- USB 2.0 (480M) via VIA Labs hubs — max reliable: 1280×720
+- USB 2.0 (480M) via VIA Labs hubs — initial tested mode: 1280×720, not a proven maximum
 - `lab` user missing from `video` group → `sudo usermod -aG video lab` required before deployment
 - Second camera not yet physically connected
 
@@ -160,7 +199,8 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 ```
 20 passed, 2 warnings in 0.09s
 ```
-All tests green on Python 3.14.3, pytest 9.1.1.
+The initial notes reported this result on Python 3.14.3 and pytest 9.1.1.
+Those historical versions are not a current validation of the pinned requirements.
 
 ### Git
 ```
@@ -182,4 +222,6 @@ When you make a change, add a block at the top of the **[Unreleased]** section u
 - **Hardware** — physical changes on lab (cables, cameras, USB ports)
 - **Deployment** — systemd, Nginx, server config changes
 
-When a milestone is reached (e.g. "working on lab with one camera"), move the Unreleased block to a new versioned section like `[0.2.0] — YYYY-MM-DD`.
+When publishing a release, record a dated section and update package/API version
+metadata deliberately. Do not treat a documentation-only milestone number as
+proof that the package metadata or deployed service has been versioned.

@@ -1,4 +1,4 @@
-import { BASE, CAMERAS, CAM_LABEL } from './common.js';
+import { BASE, CAMERAS, CAM_LABEL, retryLivePreview } from './common.js';
 import { CameraControlsPanel, CameraControlsAccess, refreshCameraControls } from './controls.js';
 
 const previews = [];
@@ -21,6 +21,7 @@ CAMERAS.forEach(id => {
   preview.id = `settings-img-${id}`;
   preview.alt = `${id} live preview`;
   preview.dataset.src = `${BASE}/api/v1/cameras/${encodeURIComponent(id)}/stream.mjpeg`;
+  retryLivePreview(preview);
   previews.push(preview);
   box.append(preview);
   const controls = document.createElement('div');

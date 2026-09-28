@@ -4,6 +4,7 @@ import { measureSnapshot, redrawSnapshotGraphs, bindSnapshotControls } from './s
 import { startHistory, stopHistory, updateHistoryLayout, bindHistoryControls } from './history.js';
 import { setSettingsActive } from './settings.js';
 import './api-console.js';
+import { setApiCallsActive } from './api-calls.js';
 
 const API_BASE_URL = new URL('.', window.location.href).href.replace(/\/$/, '');
 document.querySelectorAll('.api-docs-base').forEach(el => {
@@ -28,7 +29,7 @@ function tickUptime() {
 async function pollStatus() {
   let data;
   try {
-    const r = await fetch(BASE + '/api/v1/status');
+    const r = await fetch(BASE + '/api/v1/status', { headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     data = await r.json();
   } catch {
@@ -42,7 +43,8 @@ async function pollStatus() {
 }
 
 function normalizeTab(hash) {
-  if (hash === '#api') return 'api';
+  if (hash === '#api-console' || hash === '#api') return 'api-console';
+  if (hash === '#api-calls') return 'api-calls';
   if (hash === '#snapshots') return 'snapshots';
   if (hash === '#settings') return 'settings';
   if (hash === '#docs') return 'docs';
@@ -55,7 +57,9 @@ function showTab(tab) {
   if (tab !== 'history') document.body.classList.remove('history-stacked');
   document.getElementById('panel-stream').classList.toggle('active', tab === 'stream');
   document.getElementById('panel-snapshots').classList.toggle('active', tab === 'snapshots');
-  document.getElementById('panel-api').classList.toggle('active', tab === 'api');
+  document.getElementById('panel-api-console').classList.toggle('active', tab === 'api-console');
+  document.getElementById('panel-api-calls').classList.toggle('active', tab === 'api-calls');
+  setApiCallsActive(tab === 'api-calls');
   document.getElementById('panel-settings').classList.toggle('active', tab === 'settings');
   document.getElementById('panel-docs').classList.toggle('active', tab === 'docs');
   document.getElementById('panel-history').classList.toggle('active', tab === 'history');
