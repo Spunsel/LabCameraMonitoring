@@ -51,6 +51,8 @@ class ApiConfig(BaseModel):
 
 class StorageConfig(BaseModel):
     captures_dir: Path = Path("var/captures")
+    # Separate from capture retention. Defaults to a sibling of captures_dir.
+    camera_configs_dir: Path | None = None
 
 
 # ── Root settings ─────────────────────────────────────────────────────────────

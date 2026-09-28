@@ -1,9 +1,11 @@
 # camera-service
 
 Camera settings: see [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) for the new dashboard
-panels, operator access, deployment setup and control API.
+panels, named configurations, one-step undo, operator access, deployment setup
+and control API.
 
-The dashboard order is Stream, Snapshots, History, API, Settings, Docs.
+The dashboard order is Stream, Snapshots, History, Docs, API Console.
+Settings is an icon-only entry beside the theme toggle.
 See [API_CONSOLE.md](API_CONSOLE.md) for the interactive API console.
 
 Stable camera gateway for the BPM lab at TU München.
@@ -190,6 +192,7 @@ api:
 
 storage:
   captures_dir: var/captures   # relative to ~/camera-service/ — created automatically
+  # camera_configs_dir: var/camera-configs  # defaults to a sibling of captures_dir
 ```
 
 ---

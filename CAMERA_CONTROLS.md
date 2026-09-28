@@ -1,6 +1,6 @@
 # Camera controls
 
-Camera settings have a dedicated Settings tab between API and Docs.
+Camera settings have an icon-only entry beside the theme toggle.
 It contains two camera columns, each with a live preview and four independently
 collapsible control sections, all closed by default, and one compact operator
 unlock/lock toolbar above both columns. Click a section heading or focus it and
@@ -85,17 +85,65 @@ each change, or with **refresh** beside the camera name. Controls display camera
 Snapshot previews retain their five-second refresh interval.
 
 Changes affect the camera, all streams and future snapshots. Existing captures
-are unchanged. **Restore camera defaults** restores the driver's reported
+are unchanged. **Restore defaults** restores the driver's reported
 defaults, including automatic modes. It is not an undo operation; Logitech's
-default anti-flicker can be 60 Hz. Your output reported 60 Hz for whiteboard and
-50 Hz for robot; choose 50 Hz if appropriate for lab lighting. Variable frame
-rate can reduce FPS in low light.
+default anti-flicker can be 60 Hz. Variable frame rate can reduce FPS in low light.
 
-The API does not reset settings at startup or store presets. Hardware settings
+The API does not reset settings or automatically load a configuration at startup. Hardware settings
 can reset after USB reconnection, power loss or another program's changes;
 refresh to read actual values. Failed multi-control requests can partially
 apply: responses identify completed writes and include readback when available.
 The dashboard reports the failure and refreshes state.
+
+## Save, load and undo
+
+Each camera footer has **save config** and **load config** on the left, and
+**restore defaults** followed by an icon-only **undo** button on the right.
+All require unlocked operator access. The previews and refresh buttons stay above
+and outside the settings card.
+
+- **save config** opens a name field with **save** and **discard**. It reads the
+  camera's current settings without modifying them. Names are trimmed, limited
+  to 80 characters, and unique per camera (case insensitive). Existing names
+  are never silently overwritten.
+- **load config** lists that camera's saved names. Selecting one opens a
+  confirmation with **switch** and **abort**. Only **switch** changes hardware.
+- **undo** restores the configuration immediately before your last change,
+  including reset or loading a saved configuration. It is one step, not a
+  history or redo stack. It cannot recover changes made before this version.
+  Refresh and saving a configuration do not consume undo. Reloading the browser,
+  locking controls, or restarting the API clears this session's undo access.
+  A later API write invalidates older undo tokens; changes detected from another
+  program also block undo. A failed batch reports partial changes and offers
+  recovery when readback is available.
+
+Automatic focus, exposure and white balance remain automatic when saved that
+way. Their changing measurements are not stored as manual settings. Loading a
+manual configuration switches modes first, then restores the manual values.
+Values are validated against current camera capabilities before any write.
+The driver can adjust requested values; the dashboard shows the readback and
+reports adjustments rather than claiming an exact restoration.
+
+Configurations persist as JSON in a separate `camera-configs` directory beside
+`storage.captures_dir` (normally `var/camera-configs`). Capture retention does
+not remove them. The API service account needs write access to that directory
+or its parent for first creation. To choose another location, add the optional
+`storage.camera_configs_dir` setting to the existing YAML. Files are written
+atomically, and names never become file paths. Configurations are tied to both
+the camera ID and its configured device path. Back up this directory with your
+installation. Listing configuration names requires the operator key; public
+control readbacks expose neither names nor undo tokens.
+
+Copy the updated application files into the existing installation, preserving
+production YAML, the operator key, and saved captures. Restart only the API:
+
+```bash
+sudo systemctl restart camera-api.service
+```
+
+Then reload the dashboard. No additional dependencies or capture-service restart
+are required. Keep the existing **one Uvicorn worker** deployment: per-camera
+write locks and one-step undo state are in the API process.
 
 ## API
 
@@ -105,6 +153,14 @@ The dashboard reports the failure and refreshes state.
 | `GET /api/v1/cameras/{camera_id}/controls/access` | Validate an operator key |
 | `PATCH /api/v1/cameras/{camera_id}/controls` | Apply `{"values":{"name":integer}}` and return readback |
 | `POST /api/v1/cameras/{camera_id}/controls/reset` | Restore camera defaults and return readback |
+| `GET /api/v1/cameras/{camera_id}/controls/configs` | List saved names, IDs and creation dates |
+| `POST /api/v1/cameras/{camera_id}/controls/configs` | Save current settings with `{"name":"Lab baseline"}` |
+| `POST /api/v1/cameras/{camera_id}/controls/configs/{config_id}/load` | Apply a saved configuration |
+| `POST /api/v1/cameras/{camera_id}/controls/undo` | Undo using `{"undo_token":"…"}` from the preceding mutation |
+
+Mutation responses include a private `undo_token` when recovery is available.
+Public reads include a `revision` used to invalidate stale dashboard undo state.
+Save responses also include the refreshed `configs` list and `saved_config_id`.
 
 All except the first require `X-Camera-Control-Key`. API values use native V4L2
 integers: exposure is in 0.1 ms units, pan/tilt in arcseconds. The API validates
@@ -132,7 +188,8 @@ pretending to apply them. FastAPI's `/docs` also lists the routes.
 
 ## Verification
 
-Run `python -m pytest tests/test_controls.py` and `node tests/test_controls_ui.mjs`.
+Run `python -m pytest tests/test_controls.py tests/test_camera_configs.py` and
+`node tests/test_controls_ui.mjs`.
 The JavaScript test uses a DOM stand-in; it is not a visual browser test.
 Backend tests use a fixture based on the
 supplied StreamCam output and a fake device runner. On the lab hardware, test

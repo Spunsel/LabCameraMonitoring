@@ -147,6 +147,7 @@ body.history-view.history-stacked { height: auto; }
   align-items: center;
 }
 .hdr-right { justify-content: flex-end; gap: 0.5rem; }
+#uptime { text-align: right; }
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -486,7 +487,22 @@ body.history-view.history-stacked { height: auto; }
 .camera-control-hint { display: block; }
 .camera-control-hint:empty, .camera-controls-status:empty { display: none; }
 .camera-controls-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.6rem; padding-top: 0.75rem; }
-.camera-controls-footer .camera-controls-status { flex: 1; }
+.camera-controls-footer .camera-controls-status { flex-basis: 100%; }
+.camera-controls-config-actions, .camera-controls-restore-actions { display: flex; align-items: stretch; gap: 0.4rem; min-width: 0; }
+.camera-controls-config-actions { margin-right: auto; flex-wrap: wrap; }
+.camera-controls .camera-config-select { width: auto; max-width: 14rem; font-size: 11px; font-weight: bold; }
+.camera-controls-undo { display: inline-flex; align-items: center; justify-content: center; padding-inline: 6px; }
+.camera-controls-undo-icon { width: 16px; height: 16px; background: currentColor; mask: url('icons/undo.svg') center / contain no-repeat; -webkit-mask: url('icons/undo.svg') center / contain no-repeat; }
+.camera-config-dialog { box-sizing: border-box; width: min(28rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--panel-border); border-radius: 3px; background: var(--header-bg); color: var(--body-text); font-family: 'Adwaita Sans', sans-serif; }
+.camera-config-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.camera-config-dialog h2 { margin: 0 0 0.75rem; font-size: 16px; color: var(--strong-text); }
+.camera-config-dialog p { font-size: 13px; overflow-wrap: anywhere; }
+.camera-config-dialog label { display: block; margin-bottom: 0.4rem; font-size: 12px; }
+.camera-config-dialog input { box-sizing: border-box; width: 100%; padding: 0.5rem; border: 1px solid var(--control-border); border-radius: 3px; background: var(--control-bg); color: var(--strong-text); font: inherit; }
+.camera-config-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+.camera-config-dialog .cap-btn { padding: 0.4rem 0.8rem; }
+.camera-config-dialog :focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.camera-config-dialog :disabled { opacity: 0.55; cursor: default; }
 .camera-controls-status { margin: 0; font-size: 12px; color: var(--muted-text); overflow-wrap: anywhere; }
 :is(.camera-controls, .camera-settings-access) [hidden] { display: none; }
 @container (max-width: 380px) {

@@ -8,12 +8,14 @@ import logging
 import os
 import re
 from typing import Annotated, Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 from api.settings import Settings
+from api.camera_configs import CameraConfigStore
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/cameras", tags=["camera controls"])
@@ -90,11 +92,33 @@ class ControlChanges(BaseModel):
     values: dict[str, StrictInt] = Field(min_length=1, max_length=len(CONTROL_INFO))
 
 
+class ConfigName(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value or any(ord(c) < 32 or ord(c) == 127 for c in value):
+            raise ValueError("Enter a name without control characters")
+        return value
+
+
+class UndoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    undo_token: str = Field(min_length=32, max_length=32, pattern=r"^[a-f0-9]+$")
+
+
 class CameraControls:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.key = os.environ.get("CAMERA_SERVICE_CONTROLS_TOKEN", "").strip()
         self.locks = {camera_id: asyncio.Lock() for camera_id in settings.cameras}
+        self.revisions = {camera_id: uuid4().hex for camera_id in settings.cameras}
+        self.undo_records: dict[str, dict[str, Any]] = {}
+        self.configs = CameraConfigStore(settings.storage.camera_configs_dir
+                                        or settings.storage.captures_dir.parent / "camera-configs")
 
     def device(self, camera_id: str) -> str:
         cfg = self.settings.cameras.get(camera_id)
@@ -152,7 +176,7 @@ class CameraControls:
     async def read(self, camera_id: str) -> dict[str, Any]:
         controls = parse_controls(await self.run(self.device(camera_id), "--list-ctrls-menus"))
         return {"camera_id": camera_id, "write_enabled": bool(self.key),
-                "controls": list(controls.values())}
+                "controls": list(controls.values()), "revision": self.revisions[camera_id]}
 
     async def get(self, camera_id: str) -> dict[str, Any]:
         self.device(camera_id)
@@ -187,7 +211,7 @@ class CameraControls:
                 raise HTTPException(409, f"Control is currently inactive: {name}")
 
     async def update(self, camera_id: str, values: dict[str, int] | None) -> dict[str, Any]:
-        device = self.device(camera_id)
+        self.device(camera_id)
         async with self.locks[camera_id]:
             initial = await self.read(camera_id)
             controls = {c["name"]: c for c in initial["controls"]}
@@ -199,34 +223,105 @@ class CameraControls:
                           if name not in DEPENDENCIES or
                           values.get(DEPENDENCIES[name][0], controls.get(DEPENDENCIES[name][0], {}).get("value"))
                           == DEPENDENCIES[name][1]}
-            if not values:
-                raise HTTPException(409, "No writable camera controls")
-            self.validate(values, controls)
-            # Turn off automatic modes before writing dependent manual values.
-            modes = {mode for mode, _ in DEPENDENCIES.values()}
-            ordered = sorted(values, key=lambda name: name not in modes)
-            applied = []
+            return await self.apply(camera_id, initial, values)
+
+    @staticmethod
+    def snapshot(state: dict) -> dict[str, int]:
+        """Save configuration, not fluctuating auto-controlled measurements."""
+        controls = {c["name"]: c for c in state["controls"]}
+        return {name: c["value"] for name, c in controls.items()
+                if not set(c["flags"]) & {"read-only", "disabled", "grabbed", "inactive"}
+                and (name not in DEPENDENCIES or
+                     controls.get(DEPENDENCIES[name][0], {}).get("value") == DEPENDENCIES[name][1])}
+
+    async def apply(self, camera_id: str, initial: dict, values: dict[str, int],
+                    *, undo: bool = False) -> dict:
+        """Called with the camera lock held. All mutations share one undo slot."""
+        if not values:
+            raise HTTPException(409, "No writable camera controls")
+        if any(name not in CONTROL_INFO or type(value) is not int for name, value in values.items()):
+            raise HTTPException(422, "Invalid saved control values")
+        controls = {c["name"]: c for c in initial["controls"]}
+        self.validate(values, controls)
+        if not undo and all(controls[name]["value"] == value for name, value in values.items()):
+            initial["message"] = "Camera settings already match"
+            return initial
+        previous = self.snapshot(initial)
+        # Invalidate earlier undo tokens before the first hardware write.
+        self.revisions[camera_id] = uuid4().hex
+        record = self.undo_records.get(camera_id) if undo else None
+        if record is None:
+            record = {"token": uuid4().hex, "values": previous, "expected": None}
+        self.undo_records[camera_id] = record
+        modes = {mode for mode, _ in DEPENDENCIES.values()}
+        ordered = sorted(values, key=lambda name: name not in modes)
+        applied = []
+        try:
+            for name in ordered:
+                await self.run(self.device(camera_id), f"--set-ctrl={name}={values[name]}")
+                applied.append(name)
+            state = await self.read(camera_id)
+        except HTTPException as exc:
             try:
-                for name in ordered:
-                    await self.run(device, f"--set-ctrl={name}={values[name]}")
-                    applied.append(name)
                 state = await self.read(camera_id)
-            except HTTPException as exc:
-                if not applied:
-                    raise
-                try:
-                    state = await self.read(camera_id)
-                except HTTPException:
-                    state = None
-                raise HTTPException(exc.status_code, {
-                    "message": "Some settings may have changed. " + str(exc.detail),
-                    "applied": applied, "state": state,
-                }) from exc
-            actual = {c["name"]: c["value"] for c in state["controls"]}
-            adjusted = [name for name, value in values.items() if actual.get(name) != value]
-            state["message"] = ("Camera adjusted: " + ", ".join(adjusted)
-                                if adjusted else "Camera settings updated")
+                record["expected"] = self.snapshot(state)
+                state["undo_token"] = record["token"]
+            except HTTPException:
+                state = None
+                self.undo_records.pop(camera_id, None)
+            raise HTTPException(exc.status_code, {
+                "message": "Some settings may have changed. " + str(exc.detail),
+                "applied": applied, "state": state,
+            }) from exc
+        actual = {c["name"]: c["value"] for c in state["controls"]}
+        adjusted = [name for name, value in values.items() if actual.get(name) != value]
+        record["expected"] = self.snapshot(state)
+        if undo and not adjusted:
+            self.undo_records.pop(camera_id, None)
+        else:
+            state["undo_token"] = record["token"]
+        state["message"] = ("Camera adjusted: " + ", ".join(adjusted)
+                            if adjusted else "Last change undone" if undo else "Camera settings updated")
+        return state
+
+    async def undo(self, camera_id: str, token: str) -> dict:
+        self.device(camera_id)
+        async with self.locks[camera_id]:
+            record = self.undo_records.get(camera_id)
+            if record is None or not hmac.compare_digest(record["token"], token):
+                raise HTTPException(409, "Undo is no longer available; the camera may have changed elsewhere")
+            initial = await self.read(camera_id)
+            if record["expected"] != self.snapshot(initial):
+                self.undo_records.pop(camera_id, None)
+                self.revisions[camera_id] = uuid4().hex
+                raise HTTPException(409, "Camera settings changed elsewhere; refresh before making another change")
+            return await self.apply(camera_id, initial, record["values"], undo=True)
+
+    async def list_configs(self, camera_id: str) -> dict:
+        self.device(camera_id)
+        async with self.locks[camera_id]:
+            return {"configs": await asyncio.to_thread(self.configs.listing, camera_id)}
+
+    async def save_config(self, camera_id: str, name: str) -> dict:
+        device = self.device(camera_id)
+        async with self.locks[camera_id]:
+            state = await self.read(camera_id)
+            values = self.snapshot(state)
+            if not values:
+                raise HTTPException(409, "No writable camera controls to save")
+            config = await asyncio.to_thread(self.configs.save, camera_id, device, name, values)
+            state["configs"] = await asyncio.to_thread(self.configs.listing, camera_id)
+            state["saved_config_id"] = config["id"]
+            state["message"] = "Configuration saved"
             return state
+
+    async def load_config(self, camera_id: str, config_id: str) -> dict:
+        device = self.device(camera_id)
+        async with self.locks[camera_id]:
+            config = await asyncio.to_thread(self.configs.get, camera_id, config_id, device)
+            initial = await self.read(camera_id)
+            # apply validates the complete saved configuration before any write.
+            return await self.apply(camera_id, initial, config["values"])
 
 
 def manager(request: Request, response: Response) -> CameraControls:
@@ -263,3 +358,30 @@ async def change_controls(camera_id: str, changes: ControlChanges,
 async def reset_controls(camera_id: str, service: Annotated[CameraControls, Depends(authorized)]):
     """Restore reported device defaults for writable controls, including automatic modes."""
     return await service.update(camera_id, None)
+
+
+@router.get("/{camera_id}/controls/configs")
+async def list_configs(camera_id: str, service: Annotated[CameraControls, Depends(authorized)]):
+    """List this camera's saved configurations (operator access required)."""
+    return await service.list_configs(camera_id)
+
+
+@router.post("/{camera_id}/controls/configs")
+async def save_config(camera_id: str, config: ConfigName,
+                      service: Annotated[CameraControls, Depends(authorized)]):
+    """Save the current camera configuration without changing hardware."""
+    return await service.save_config(camera_id, config.name)
+
+
+@router.post("/{camera_id}/controls/configs/{config_id}/load")
+async def load_config(camera_id: str, config_id: str,
+                      service: Annotated[CameraControls, Depends(authorized)]):
+    """Apply a saved configuration for this device and return camera readback."""
+    return await service.load_config(camera_id, config_id)
+
+
+@router.post("/{camera_id}/controls/undo")
+async def undo_controls(camera_id: str, change: UndoRequest,
+                        service: Annotated[CameraControls, Depends(authorized)]):
+    """Undo the last change using the private token returned by that write."""
+    return await service.undo(camera_id, change.undo_token)

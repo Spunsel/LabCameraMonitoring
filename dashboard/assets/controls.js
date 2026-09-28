@@ -50,28 +50,50 @@ class CameraControlState {
     this.busy = false;
     this.message = '';
     this.error = false;
+    this.configs = [];
+    this.undoToken = '';
+    this.undoRevision = '';
   }
 
   notify() { this.panels.forEach(panel => panel.render()); }
 
+  accept(data) {
+    this.data = data;
+    if (data?.undo_token) {
+      this.undoToken = data.undo_token;
+      this.undoRevision = data.revision;
+    } else if (!data || data.revision !== this.undoRevision) {
+      this.undoToken = '';
+      this.undoRevision = '';
+    }
+    if (data?.configs) this.configs = data.configs;
+  }
+
   async perform(suffix = '', options = {}) {
-    if (this.busy) return;
+    if (this.busy) return false;
     this.busy = true;
     this.error = false;
-    this.message = options.method ? 'Applying settings…' : 'Reading camera settings…';
+    this.message = suffix === '/configs' ? 'Saving configuration…'
+      : options.method ? 'Applying settings…' : 'Reading camera settings…';
     updateAllPanels();
     try {
-      this.data = await request(this.cameraId, suffix, options);
+      this.accept(await request(this.cameraId, suffix, options));
+      if (!options.method && operatorKey) {
+        this.configs = (await request(this.cameraId, '/configs')).configs;
+      }
       this.message = this.data.message || (this.data.controls.length ? '' : 'No supported controls reported.');
+      return true;
     } catch (error) {
       if (error.status === 403) operatorKey = '';
-      this.data = error.state || null;
+      // Saving a name cannot change the camera or consume its undo slot.
+      if (suffix !== '/configs') this.accept(error.state || null);
       // A failed write may have partly succeeded. Read actual state before re-enabling inputs.
       if (options.method && !this.data) {
-        try { this.data = await request(this.cameraId); } catch {}
+        try { this.accept(await request(this.cameraId)); } catch {}
       }
       this.error = true;
       this.message = error.message;
+      return false;
     } finally {
       this.busy = false;
       updateAllPanels();
@@ -144,6 +166,7 @@ export class CameraControlsAccess {
     this.lockButton.type = 'button';
     this.lockButton.addEventListener('click', () => {
       operatorKey = '';
+      models.forEach(model => { model.configs = []; model.undoToken = ''; });
       this.error = '';
       updateAllPanels();
     });
@@ -166,6 +189,7 @@ export class CameraControlsAccess {
     try {
       await request(camera.cameraId, '/access', {}, key);
       operatorKey = key;
+      await Promise.all([...models.values()].map(model => model.perform()));
     } catch (error) {
       this.error = error.message;
     } finally {
@@ -193,6 +217,79 @@ export class CameraControlsAccess {
   }
 }
 
+// Native dialogs provide focus trapping, Escape and focus restoration.
+class CameraConfigDialog {
+  constructor(panel, config = null) {
+    this.panel = panel;
+    this.config = config;
+    this.busy = false;
+    this.root = element('dialog', 'camera-config-dialog');
+    this.form = element('form');
+    const title = element('h2', '', config ? 'Switch configuration' : 'Save configuration');
+    title.id = `${panel.id}-dialog-title`;
+    this.root.setAttribute('aria-labelledby', title.id);
+    const camera = panel.model.cameraId;
+    this.form.append(title, element('p', '', config
+      ? `Are you sure you want to switch configuration for ${camera} camera to “${config.name}”?`
+      : `Save the current settings for ${camera} camera.`));
+    if (!config) {
+      const label = element('label', '', 'Configuration name');
+      this.input = element('input');
+      this.input.id = `${panel.id}-config-name`;
+      label.htmlFor = this.input.id;
+      this.input.type = 'text';
+      this.input.required = true;
+      this.input.maxLength = 80;
+      this.input.autocomplete = 'off';
+      this.input.autofocus = true;
+      this.form.append(label, this.input);
+    }
+    this.error = element('p', 'camera-controls-status b');
+    this.error.setAttribute('role', 'alert');
+    const actions = element('div', 'camera-config-dialog-actions');
+    this.cancel = element('button', 'cap-btn', config ? 'abort' : 'discard');
+    this.cancel.type = 'button';
+    this.cancel.addEventListener('click', () => this.root.close());
+    this.submit = element('button', 'cap-btn', config ? 'switch' : 'save');
+    this.submit.type = 'submit';
+    actions.append(this.cancel, this.submit);
+    this.form.append(this.error, actions);
+    this.form.addEventListener('submit', event => { event.preventDefault(); this.save(); });
+    this.root.addEventListener('cancel', event => { if (this.busy) event.preventDefault(); });
+    this.root.addEventListener('close', () => { this.root.remove(); panel.dialog = null; });
+    this.root.append(this.form);
+    document.body.append(this.root);
+    this.root.showModal();
+    (this.input || this.cancel).focus();
+  }
+
+  async save() {
+    if (this.busy || this.panel.model.busy) return;
+    if (!operatorKey) { this.error.textContent = 'Unlock controls before continuing.'; return; }
+    const name = this.input?.value.trim();
+    if (this.input && (!name || !this.input.checkValidity())) {
+      this.error.textContent = 'Enter a configuration name (up to 80 characters).';
+      this.input.focus();
+      return;
+    }
+    this.busy = true;
+    this.cancel.disabled = this.submit.disabled = true;
+    if (this.input) this.input.disabled = true;
+    this.error.textContent = '';
+    const ok = await this.panel.model.perform(this.config
+      ? `/configs/${encodeURIComponent(this.config.id)}/load` : '/configs', {
+      method: 'POST', ...(this.config ? {} : { body: JSON.stringify({ name }) }),
+    });
+    this.busy = false;
+    if (ok) this.root.close();
+    else {
+      this.error.textContent = this.panel.model.message;
+      this.cancel.disabled = this.submit.disabled = false;
+      if (this.input) { this.input.disabled = false; this.input.focus(); }
+    }
+  }
+}
+
 export class CameraControlsPanel {
   constructor(host, cameraId, actionsHost = null) {
     if (!models.has(cameraId)) models.set(cameraId, new CameraControlState(cameraId));
@@ -214,7 +311,7 @@ export class CameraControlsPanel {
     this.refreshButton.type = 'button';
     this.refreshButton.addEventListener('click', () => this.model.perform());
     (actionsHost || this.root).append(this.refreshButton);
-    this.resetButton = element('button', 'cap-btn', 'restore camera defaults');
+    this.resetButton = element('button', 'cap-btn', 'restore defaults');
     this.resetButton.type = 'button';
     this.resetButton.addEventListener('click', () => {
       if (window.confirm(`Restore ${cameraId} camera defaults, including automatic modes and anti-flicker? This changes the feed for all viewers.`)) {
@@ -224,8 +321,35 @@ export class CameraControlsPanel {
     this.status = element('p', 'camera-controls-status');
     this.status.setAttribute('role', 'status');
     this.status.setAttribute('aria-live', 'polite');
+    this.saveButton = element('button', 'cap-btn', 'save config');
+    this.saveButton.type = 'button';
+    this.saveButton.addEventListener('click', () => {
+      if (!this.dialog) this.dialog = new CameraConfigDialog(this);
+    });
+    this.loadSelect = element('select', 'camera-config-select');
+    this.loadSelect.setAttribute('aria-label', `Load configuration for ${cameraId} camera`);
+    this.loadSelect.addEventListener('change', () => {
+      const config = this.model.configs.find(c => c.id === this.loadSelect.value);
+      this.loadSelect.value = '';
+      if (config && !this.dialog) this.dialog = new CameraConfigDialog(this, config);
+    });
+    this.undoButton = element('button', 'cap-btn camera-controls-undo');
+    this.undoButton.type = 'button';
+    this.undoButton.setAttribute('aria-label', `Undo last change to ${cameraId} camera`);
+    const undoIcon = element('span', 'camera-controls-undo-icon');
+    undoIcon.setAttribute('aria-hidden', 'true');
+    this.undoButton.append(undoIcon);
+    this.undoButton.addEventListener('click', () => {
+      if (this.model.undoToken) this.model.perform('/undo', {
+        method: 'POST', body: JSON.stringify({ undo_token: this.model.undoToken }),
+      });
+    });
     const footer = element('div', 'camera-controls-footer');
-    footer.append(this.status, this.resetButton);
+    const configs = element('div', 'camera-controls-config-actions');
+    configs.append(this.saveButton, this.loadSelect);
+    const restore = element('div', 'camera-controls-restore-actions');
+    restore.append(this.resetButton, this.undoButton);
+    footer.append(configs, restore, this.status);
     this.root.append(this.sections, footer);
     host.append(this.root);
     this.render();
@@ -348,6 +472,20 @@ export class CameraControlsPanel {
     this.root.setAttribute('aria-busy', String(busy));
     this.refreshButton.disabled = busy;
     this.resetButton.disabled = !unlocked || busy || !controls.length;
+    this.saveButton.disabled = this.resetButton.disabled;
+    this.loadSelect.disabled = this.resetButton.disabled || !this.model.configs.length;
+    const configSignature = JSON.stringify(this.model.configs);
+    if (configSignature !== this.configSignature) {
+      this.configSignature = configSignature;
+      const placeholder = new Option('load config', '');
+      placeholder.disabled = true;
+      this.loadSelect.replaceChildren(placeholder);
+      this.model.configs.forEach(config => this.loadSelect.add(new Option(config.name, config.id)));
+      this.loadSelect.value = '';
+    }
+    this.loadSelect.title = this.model.configs.length ? 'Load a saved configuration' : 'No saved configurations';
+    this.undoButton.disabled = this.resetButton.disabled || !this.model.undoToken;
+    this.undoButton.title = this.model.undoToken ? 'Undo last change' : 'No change available to undo';
     this.status.textContent = message || (data && !data.write_enabled ? 'Operator access is unavailable. Settings are view only.' : '');
     this.status.classList.toggle('b', error);
     for (const control of controls) {
