@@ -14,7 +14,8 @@ those historical entries describe their dates only.
 
 - Offloaded capture filesystem operations and coordinated reads/writes/cleanup.
 - Added shared 15-second capture listing and storage-statistics caches.
-- Paused hidden previews and unnecessary snapshot/metric/history polling.
+- Paused hidden previews and unnecessary metric/history polling; snapshot
+  requests continue across all dashboard panels and browser visibility changes.
 - Added cancellable polling without overlapping cycles and timestamped snapshot gaps.
 - Added 12 backend and 6 JavaScript regression checks; see
   [PERFORMANCE_UPDATE.md](PERFORMANCE_UPDATE.md) for exact verification limits.

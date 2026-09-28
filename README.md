@@ -25,9 +25,10 @@ Settings is an icon-only entry beside the light/dark theme toggle.
 | API CALLS | `#api-calls` | Operator-protected recent API requests; 500 retained in memory, 25/50/100 displayed |
 | Settings | `#settings` | Live previews, image controls, saved configurations, one-step undo |
 
-Snapshot measurements and live previews pause when their panel or browser tab is
-hidden. Snapshot history shows gaps during pauses; server-side stream history
-continues collecting.
+Snapshot measurements continue across all dashboard panels, including when the
+browser tab is hidden (browser background timer throttling may apply). Live
+stream previews pause when their panel or browser tab is hidden. Server-side
+stream history continues collecting independently.
 
 `#api` remains a compatibility alias for API Console. The Docs tab is different
 from FastAPI's generated `/docs` and `/redoc` pages.

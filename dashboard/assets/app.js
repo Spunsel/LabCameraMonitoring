@@ -59,7 +59,8 @@ function updateActivity() {
   setSettingsActive(visible && selectedTab === 'settings');
   statusPoller[visible ? 'start' : 'stop']();
   metricsPoller[stream ? 'start' : 'stop']();
-  snapshotsPoller[visible && selectedTab === 'snapshots' ? 'start' : 'stop']();
+  // Keep snapshot measurements running across dashboard tabs and visibility changes.
+  snapshotsPoller.start();
   if (visible && selectedTab === 'history') startHistory();
   else stopHistory();
   setApiCallsActive(visible && selectedTab === 'api-calls');
