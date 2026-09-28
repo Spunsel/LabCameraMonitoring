@@ -1,12 +1,11 @@
 """Saved camera snapshots and JSON sidecars.
 
-New captures are flat pairs in ``captures_dir``::
+Captures are flat pairs in ``captures_dir``::
 
     whiteboard_20260926T071520889Z.jpg
     whiteboard_20260926T071520889Z.json
 
-The shared filename stem identifies one snapshot. Older event directories are
-still readable until the normal 48-hour cleanup removes them.
+The shared filename stem identifies one snapshot. File pairs expire after 48 hours.
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ import json
 import logging
 import re
 import secrets
-import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,7 +25,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 CAPTURE_RETENTION = timedelta(days=2)
 _STEM = re.compile(r"^(?P<camera>[A-Za-z0-9_-]+)_(?P<time>[0-9]{8}T[0-9]{9}Z)$")
-_LEGACY_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass
@@ -87,16 +84,6 @@ def _stem_time(stem: str) -> datetime | None:
         return None
 
 
-def _sort_time(value: Any, fallback: float) -> float:
-    try:
-        at = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if at.tzinfo is None:
-            at = at.replace(tzinfo=timezone.utc)
-        return at.timestamp()
-    except (AttributeError, TypeError, ValueError, OverflowError):
-        return fallback
-
-
 class CaptureStore:
     def __init__(self, captures_dir: Path) -> None:
         self._root = captures_dir
@@ -104,7 +91,7 @@ class CaptureStore:
         self.last_successful_cleanup: datetime | None = None
 
     def storage_summary(self) -> dict[str, int | str | None]:
-        """Size of saved JPG and JSON files, including older capture folders."""
+        """Size of saved top-level JPG and JSON files."""
         totals = {"jpg_bytes": 0, "json_bytes": 0}
 
         def include(path: Path) -> None:
@@ -115,14 +102,7 @@ class CaptureStore:
                 totals[key] += path.stat().st_size
 
         for path in self._root.iterdir():
-            if path.is_symlink():
-                continue
-            if path.is_dir():
-                # Previous versions stored each capture in a one-level folder.
-                for child in path.iterdir():
-                    include(child)
-            else:
-                include(path)
+            include(path)
 
         return {
             **totals,
@@ -216,34 +196,8 @@ class CaptureStore:
             return None
         return self._root / f"{stem}.jpg"
 
-    def get_legacy(self, event_id: str) -> dict[str, Any] | None:
-        """Read metadata for a capture saved in the previous folder layout."""
-        if not _LEGACY_ID.fullmatch(event_id):
-            return None
-        meta_path = self._root / event_id / "metadata.json"
-        if meta_path.is_symlink() or not meta_path.is_file():
-            return None
-        try:
-            raw = json.loads(meta_path.read_text(encoding="utf-8"))
-            return raw if isinstance(raw, dict) and raw.get("event_id") == event_id else None
-        except (OSError, ValueError):
-            return None
-
-    def legacy_image_path(self, event_id: str, camera_id: str) -> Path | None:
-        raw = self.get_legacy(event_id)
-        if raw is None or not _LEGACY_ID.fullmatch(camera_id):
-            return None
-        filenames = raw.get("filenames")
-        if not isinstance(filenames, dict):
-            filenames = {}
-        filename = filenames.get(camera_id) or f"{camera_id}.jpg"
-        if not isinstance(filename, str) or Path(filename).name != filename or not filename.endswith(".jpg"):
-            return None
-        path = self._root / event_id / filename
-        return path if not path.is_symlink() and path.is_file() else None
-
     def list_captures(self, limit: int) -> list[dict[str, Any]]:
-        """List new pairs and older event folders, newest first."""
+        """List complete snapshot pairs, newest first."""
         candidates: list[tuple[float, Path]] = []
         for path in self._root.iterdir():
             if path.is_symlink():
@@ -253,8 +207,6 @@ class CaptureStore:
                     saved_at = _stem_time(path.stem)
                     if saved_at is not None:
                         candidates.append((saved_at.timestamp(), path))
-                elif path.is_dir():
-                    candidates.append((path.stat().st_mtime, path))
             except OSError as exc:
                 log.warning("Could not inspect capture %s: %s", path, exc)
 
@@ -264,41 +216,23 @@ class CaptureStore:
             if len(results) == limit:
                 break
             try:
-                if path.is_file():
-                    raw = self.flat_metadata(path.stem)
-                    if raw is None:
-                        continue
-                    image_path = self._root / raw["filename"]
-                    cam_id = raw["camera_id"]
-                    results.append({
-                        "camera_id": cam_id,
-                        "captured_at": raw["captured_at"],
-                        "images": {cam_id: image_path.stat().st_size},
-                        "filenames": {cam_id: image_path.name},
-                    })
-                elif path.is_dir():
-                    raw = self.get_legacy(path.name)
-                    if raw is None:
-                        continue
-                    sizes: dict[str, int] = {}
-                    filenames: dict[str, str] = {}
-                    for cam_id in raw.get("images", {}):
-                        image_path = self.legacy_image_path(path.name, cam_id)
-                        if image_path is not None:
-                            sizes[cam_id] = image_path.stat().st_size
-                            filenames[cam_id] = image_path.name
-                    results.append({
-                        "event_id": path.name,
-                        "captured_at": raw.get("captured_at"),
-                        "images": sizes,
-                        "filenames": filenames,
-                    })
+                raw = self.flat_metadata(path.stem)
+                if raw is None:
+                    continue
+                image_path = self._root / raw["filename"]
+                cam_id = raw["camera_id"]
+                results.append({
+                    "camera_id": cam_id,
+                    "captured_at": raw["captured_at"],
+                    "images": {cam_id: image_path.stat().st_size},
+                    "filenames": {cam_id: image_path.name},
+                })
             except (OSError, ValueError, TypeError, AttributeError) as exc:
                 log.warning("Could not list capture %s: %s", path, exc)
         return results
 
     def prune_expired(self, now: datetime | None = None) -> tuple[int, int]:
-        """Delete flat pairs and legacy folders older than 48 hours."""
+        """Delete snapshot pairs and orphaned JPEGs older than 48 hours."""
         current = now or datetime.now(tz=timezone.utc)
         if current.tzinfo is None:
             raise ValueError("prune_expired requires a timezone-aware datetime")
@@ -328,19 +262,6 @@ class CaptureStore:
                             and path.exists()):
                         path.unlink()
                         removed_orphans += 1
-                elif path.is_dir():
-                    raw = self.get_legacy(path.name)
-                    captured = _sort_time(raw.get("captured_at") if raw else None, path.stat().st_mtime)
-                    if captured < cutoff.timestamp():
-                        shutil.rmtree(path)
-                        removed_captures += 1
-                    else:
-                        for image in path.iterdir():
-                            if (image.is_file() and not image.is_symlink()
-                                    and image.suffix.lower() == ".jpg"
-                                    and image.stat().st_mtime < cutoff.timestamp()):
-                                image.unlink()
-                                removed_orphans += 1
             except OSError as exc:
                 had_errors = True
                 log.warning("Could not prune capture %s: %s", path, exc)

@@ -3,9 +3,12 @@
 Camera settings: see [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) for the new dashboard
 panels, operator access, deployment setup and control API.
 
+The dashboard order is Stream, Snapshots, History, API, Settings, Docs.
+See [API_CONSOLE.md](API_CONSOLE.md) for the interactive API console.
+
 Stable camera gateway for the BPM lab at TU München.
 Provides on-demand JPEG snapshots, an MJPEG live stream, and a CPEE-friendly
-event-capture endpoint for the **whiteboard** and **robot** Logitech StreamCams.
+saved-snapshot endpoint for the **whiteboard** and **robot** Logitech StreamCams.
 
 ---
 
@@ -41,11 +44,10 @@ snapshots. Image data never passes through demo.
 | `GET`  | `/api/v1/cameras/{id}/stream.mjpeg`             | Live MJPEG stream                                                                                  |
 | `POST` | `/api/v1/cameras/{id}/captures`                 | Save one JPEG; return its full URL as plain text and in `Location` (no request body)               |
 | `GET`  | `/api/v1/captures`                              | List saved images, timestamps, and file sizes. `?limit=N` (1–50, default 10)                       |
-| `GET`  | `/api/v1/captures/stats`                        | Total saved JPG and JSON bytes (including older capture folders), and last successful cleanup time |
+| `GET`  | `/openapi.json` | OpenAPI specification (also available in the dashboard API console) |
+| `GET`  | `/api/v1/captures/stats`                        | Total saved JPG and JSON bytes, and last successful cleanup time |
 | `GET`  | `/api/v1/captures/{camera_id}_{timestamp}.jpg`  | Saved JPEG                                                                                         |
 | `GET`  | `/api/v1/captures/{camera_id}_{timestamp}.json` | Matching metadata                                                                                  |
-| `GET`  | `/api/v1/captures/{event_id}`                   | Read older folder-based metadata until it expires                                                  |
-| `GET`  | `/api/v1/captures/{event_id}/{camera_id}.jpg`   | Read an older folder-based image until it expires                                                  |
 | `GET`  | `/api/v1/status`                                | Camera availability, resolution, fps, uptime                                                       |
 | `GET`  | `/dashboard`                                    | Live monitoring dashboard                                                                          |
 | `GET`  | `/dashboard/assets/{path}`                      | Dashboard CSS, JavaScript, font, and icon                                                          |
@@ -80,11 +82,11 @@ send a separate POST to `/api/v1/cameras/robot/captures`. Each new image and
 its metadata are saved directly in `storage.captures_dir` as a matching pair:
 `whiteboard_YYYYMMDDTHHMMSSmmmZ.jpg` and
 `whiteboard_YYYYMMDDTHHMMSSmmmZ.json` (UTC). The filename identifies the
-capture; there is no separate event folder or generated event ID. If two
+capture. If two
 requests finish in the same millisecond, the service allocates the next
 available millisecond before writing either file. The filename time is
-assigned after the service receives a JPEG, not at sensor exposure. The old
-collection POST route is removed; passing a request body returns `400`, and an
+assigned after the service receives a JPEG, not at sensor exposure. Passing a
+request body returns `400`, and an
 unknown camera returns `404`.
 
 The `201 Created` response prints the complete image URL as `text/plain` and
@@ -94,15 +96,14 @@ returned link includes Nginx's `/cameras` prefix, set
 `api.public_base_url: "https://lab.bpm.in.tum.de/cameras"` in
 `config/production.yaml`. If unset, local development uses the request URL.
 
-Stored file pairs, older event folders, and orphaned JPEGs become eligible for
+Stored file pairs and orphaned JPEGs become eligible for
 deletion after 48 hours. Cleanup runs at startup and hourly while the API is
 running, so removal can happen up to one hour after expiry. Links return `404`
 after deletion. The direct JPEG mode creates no stored capture. See
 `[USAGE.md](USAGE.md)` for a complete two-request example.
 
-For new captures, use the same filename stem with `.json` to retrieve the
-metadata. Earlier `/{event_id}/{camera_id}.jpg` links and metadata URLs keep
-working until those older captures expire.
+Use the same filename stem with `.json` to retrieve the metadata. Only top-level
+JPEG/JSON files are managed; subdirectories are ignored and left untouched.
 
 ### Snapshot response headers
 

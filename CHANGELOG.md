@@ -8,9 +8,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Capture API migration
-- [x] Capture creation uses a bodyless `POST /api/v1/cameras/{camera_id}/captures`. One camera is selected by the URL; each POST saves one JPEG with a generated event ID and returns the complete image URL as plain text and in `Location`.
-- [x] Removed the old `POST /api/v1/captures` route, JSON capture request, caller-supplied event ID, and JSON POST response. `GET /api/v1/captures` still lists images and metadata.
+### Capture storage and API console
+- [x] Capture creation uses a bodyless `POST /api/v1/cameras/{camera_id}/captures`. One camera is selected by the URL; each POST saves one JPEG and a same-named JSON sidecar and returns the complete image URL as plain text and in `Location`.
+- [x] Removed folder-based capture compatibility from the API, storage, history and documentation. Capture listing and retention now process top-level JPEG/JSON files only; existing subdirectories are left untouched.
+- [x] Added **Get API specification** (`GET /openapi.json`) to the interactive API console.
 - [x] Added `api.public_base_url` to configure the public Nginx prefix in returned image links. Updated the dashboard button, Docs tab, and API examples.
 
 ### Added
@@ -26,13 +27,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Changed
 - [x] Dashboard CSS and JavaScript now live in `dashboard/assets/`; Adwaita Mono and the extracted History download icon are served from its `fonts/` and `icons/` folders
 - [x] Dashboard assets moved out of `api/dashboard.py` into `dashboard/`; FastAPI serves the page and its CSS/JS separately, including when the app is proxied under `/cameras`
-- [x] `GET /api/v1/captures`: now returns `list[dict]` with rich metadata (`event_id`, `captured_at`, per-camera file sizes in bytes); sorted by mtime (most recent first); accepts `?limit=N` (1–50, default 10) — was `list[str]` capped at 20
+- [x] `GET /api/v1/captures`: now returns `list[dict]` with rich metadata (`camera_id`, `captured_at`, per-camera filenames and sizes in bytes); sorted by filename timestamp (most recent first); accepts `?limit=N` (1–50, default 10) — was `list[str]` capped at 20
 - [x] `deployment/nginx/camera-api.conf`: MJPEG stream endpoints bypass FastAPI and proxy directly to µStreamer (:8101/:8102) — stream latency drops from ~150–300 ms to ~30–80 ms
 - [x] `config/production.example.yaml`: default FPS raised 15 → 30 (USB 2.0 handles 720p @ 30 fps without issue)
 - [x] Dashboard: snapshot latency measured client-side via `performance.now()` + `await fetch()` TTFB; frame size from `blob.size` — no server-side measurement needed
 - [x] Dashboard: canvas bar chart — 30-minute sliding window (360 slots × 5 s), bars right-aligned and color-coded green/yellow/red, dashed white average line with value label
 - [x] Dashboard: `Cache-Control: no-store` on all snapshot responses → no `?t=` cache-buster needed in JS
-- [x] Dashboard: capture list polls `GET /api/v1/captures?limit=50` and filters per camera client-side; re-renders only when event ID changes; configurable rows (1–50, default 10) per camera table with immediate re-render on change
+- [x] Dashboard: capture list polls `GET /api/v1/captures?limit=50` and filters per camera client-side; re-renders when the capture list changes; configurable rows (1–50, default 10) per camera table with immediate re-render on change
 - [x] Dashboard: polling intervals — status every 30 s, snapshot latency every 5 s, captures every 15 s
 - [x] Rsync-lab alias: corrected exclude from `LABSERVERCOMMANDS.md` → `LAB_COMMANDS.md`
 
@@ -126,16 +127,13 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 ### Added
 - `api/settings.py` — Pydantic-settings YAML loader; reads path from `CAMERA_SERVICE_CONFIG` env var (default: `config/development.yaml`).
 - `api/cameras.py` — Camera abstraction layer with `MockCameraSource` (static JPEG from disk) and `UStreamerCameraSource` (HTTP fetch from µStreamer).
-- `api/captures.py` — `CaptureStore` class: concurrent dual-camera snapshot, disk persistence, metadata JSON side-car.
+- `api/captures.py` — `CaptureStore` class: snapshot disk persistence and JSON sidecars.
 - `api/main.py` — FastAPI application with all endpoints:
   - `GET /healthz`
   - `GET /readyz`
   - `GET /api/v1/cameras`
   - `GET /api/v1/cameras/{id}/snapshot.jpg`
   - `GET /api/v1/cameras/{id}/stream.mjpeg`
-  - `POST /api/v1/captures`
-  - `GET /api/v1/captures/{event_id}`
-  - `GET /api/v1/captures/{event_id}/{camera_id}.jpg`
 - `config/development.yaml` — mock camera config pointing at test fixtures; safe to commit.
 - `config/production.example.yaml` — template for the real lab config; committed but real file is gitignored.
 - `deployment/systemd/camera-capture@.service` — parameterized systemd unit for µStreamer (one instance per camera).
@@ -144,7 +142,7 @@ documented camera gateway service on `lab.bpm.in.tum.de`.
 - `tests/fixtures/whiteboard.jpg` — 640×480 synthetic JPEG fixture (dark blue, generated with Pillow).
 - `tests/fixtures/robot.jpg` — 640×480 synthetic JPEG fixture (dark red, generated with Pillow).
 - `tests/conftest.py` — shared pytest fixtures; sets `CAMERA_SERVICE_CONFIG` and overrides captures directory to a temp path.
-- `tests/test_api.py` — 14 HTTP endpoint tests (health, cameras list, snapshots, event captures, error cases).
+- `tests/test_api.py` — 14 HTTP endpoint tests (health, cameras list, snapshots, saved captures, error cases).
 - `tests/test_cameras.py` — 6 unit tests for `MockCameraSource` and `build_camera_registry`.
 - `requirements.txt`
 - `pyproject.toml` (pytest config, ruff lint config)

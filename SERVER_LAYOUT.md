@@ -10,7 +10,7 @@ All files that make up the camera service on the lab server, grouped by location
 |---|---|
 | `api/main.py` | FastAPI app. Defines all HTTP routes, lifespan startup/shutdown, error handling. |
 | `api/cameras.py` | Camera abstraction. `MockCameraSource` for local dev; `UStreamerCameraSource` fetches JPEG frames from a µStreamer process over HTTP. |
-| `api/captures.py` | Capture storage. Saves one JPEG and a same-named JSON sidecar per request, and reads older event folders until expiry. |
+| `api/captures.py` | Capture storage. Saves one JPEG and a same-named JSON sidecar per request. |
 | `api/settings.py` | Config loader. Reads `production.yaml` (or `development.yaml` locally) via Pydantic and exposes a typed `Settings` object. |
 | `dashboard/index.html` | Dashboard page served at `GET /dashboard` by FastAPI. |
 | `dashboard/assets/styles.css` | Dashboard layout and Adwaita Mono font definition. Served at `GET /dashboard/assets/styles.css`. |
@@ -60,8 +60,8 @@ Created automatically by the app on startup. The production template uses
 | `{camera_id}_YYYYMMDDTHHMMSSmmmZ.jpg` | One saved JPEG, directly inside the capture directory. |
 | `{camera_id}_YYYYMMDDTHHMMSSmmmZ.json` | The JPEG's camera ID, receive time, and filename. |
 
-The matching filename stem identifies the snapshot. Older `{event_id}/`
-directories remain readable until the 48-hour retention cleanup removes them.
+The matching filename stem identifies the snapshot. File pairs expire after
+48 hours. Only top-level JPEG/JSON files are managed; subdirectories are ignored.
 
 ---
 

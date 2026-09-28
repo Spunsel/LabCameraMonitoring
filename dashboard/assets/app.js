@@ -3,6 +3,7 @@ import { pollStreamMetrics, updateStreamStatus, setStreamActive, redrawStreamGra
 import { measureSnapshot, redrawSnapshotGraphs, bindSnapshotControls } from './snapshots.js';
 import { startHistory, stopHistory, updateHistoryLayout, bindHistoryControls } from './history.js';
 import { setSettingsActive } from './settings.js';
+import './api-console.js';
 
 const API_BASE_URL = new URL('.', window.location.href).href.replace(/\/$/, '');
 document.querySelectorAll('.api-docs-base').forEach(el => {
@@ -41,6 +42,7 @@ async function pollStatus() {
 }
 
 function normalizeTab(hash) {
+  if (hash === '#api') return 'api';
   if (hash === '#snapshots') return 'snapshots';
   if (hash === '#settings') return 'settings';
   if (hash === '#docs') return 'docs';
@@ -53,11 +55,16 @@ function showTab(tab) {
   if (tab !== 'history') document.body.classList.remove('history-stacked');
   document.getElementById('panel-stream').classList.toggle('active', tab === 'stream');
   document.getElementById('panel-snapshots').classList.toggle('active', tab === 'snapshots');
+  document.getElementById('panel-api').classList.toggle('active', tab === 'api');
   document.getElementById('panel-settings').classList.toggle('active', tab === 'settings');
   document.getElementById('panel-docs').classList.toggle('active', tab === 'docs');
   document.getElementById('panel-history').classList.toggle('active', tab === 'history');
-  document.querySelectorAll('.tab-btn').forEach(btn =>
-    btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const active = btn.dataset.tab === tab;
+    btn.classList.toggle('active', active);
+    if (active) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
 
   setStreamActive(tab === 'stream');
   setSettingsActive(tab === 'settings');

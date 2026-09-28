@@ -7,7 +7,7 @@ below. Check those first — this file only has what's *not* already there.
 | Doc | What's in it |
 |---|---|
 | [`README.md`](README.md) | Setup, deployment, endpoint reference table |
-| [`TESTDOCUMENTATION.md`](TESTDOCUMENTATION.md) | Structured pass/fail tests (T-01…T-16) |
+| [`TESTDOCUMENTATION.md`](TESTDOCUMENTATION.md) | Automated tests and manual verification steps |
 | [`LAB_COMMANDS.md`](LAB_COMMANDS.md) | systemd / journalctl / nginx / hardware debug commands (German) |
 | [`SERVER_LAYOUT.md`](SERVER_LAYOUT.md) | File-to-purpose map, request-flow diagrams |
 
@@ -67,8 +67,7 @@ curl -fsS -X POST https://lab.bpm.in.tum.de/cameras/api/v1/cameras/robot/capture
 curl -fsS -X POST http://127.0.0.1:8100/api/v1/cameras/whiteboard/captures
 ```
 
-The previous `POST /api/v1/captures` route has been removed. Including
-any request body, including the former JSON selector, returns `400`.
+The capture POST accepts no request body. Including one returns `400`.
 
 To confirm the capture on disk, get the JPEG name from the returned URL. Its
 metadata is stored beside it under the same name with `.json` in place of
@@ -87,8 +86,7 @@ The filename follows `<camera>_YYYYMMDDTHHMMSSmmmZ.jpg` (UTC). It is assigned
 after the service receives the image; it is not the sensor exposure timestamp.
 If two snapshots finish in the same millisecond, the service uses the next
 unused millisecond for the later filename. GET the same URL with `.json` in
-place of `.jpg` to retrieve the metadata remotely. Earlier event-folder URLs
-continue to work until those captures expire.
+place of `.jpg` to retrieve the metadata remotely.
 
 ---
 
@@ -221,15 +219,14 @@ node --check dashboard/assets/app.js
 
 .venv/bin/python -c "from api.main import app; print('app builds OK')"
 
-# After starting/restarting the API, confirm all three files are reachable.
+# After starting/restarting the API, confirm the page and assets are reachable.
 curl -fsS http://127.0.0.1:8100/dashboard | grep -q 'dashboard/assets/app.js'
 curl -fsS http://127.0.0.1:8100/dashboard/assets/styles.css | grep -q '#recent-grid'
-curl -fsS http://127.0.0.1:8100/dashboard/assets/app.js | grep -q 'const CAMERAS'
+curl -fsS http://127.0.0.1:8100/dashboard/assets/app.js | grep -q 'ApiConsole'
 curl -fsSI http://127.0.0.1:8100/dashboard/assets/fonts/adwaita-mono-regular.ttf
 curl -fsS http://127.0.0.1:8100/dashboard/assets/icons/download.svg | grep -q '<svg'
 ```
 
-When deploying this split for the first time, copy the `dashboard/` folder and
-the updated `api/main.py` together, remove the old `api/dashboard.py`, then
-restart `camera-api`. Check `/cameras/dashboard` through Nginx afterward;
+Deploy the updated `api/` and `dashboard/` files together, then restart
+`camera-api.service`. Check `/cameras/dashboard` through Nginx afterward;
 the public `/cameras/dashboard/assets/` paths must reach FastAPI too.

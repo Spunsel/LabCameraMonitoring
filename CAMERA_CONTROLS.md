@@ -1,6 +1,6 @@
 # Camera controls
 
-Camera settings have a dedicated Settings tab between Snapshots and Docs.
+Camera settings have a dedicated Settings tab between API and Docs.
 It contains two camera columns, each with a live preview and four independently
 collapsible control sections, all closed by default, and one compact operator
 unlock/lock toolbar above both columns. Click a section heading or focus it and

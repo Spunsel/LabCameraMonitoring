@@ -105,10 +105,9 @@ function renderCaptures(captures, camId) {
   for (const cap of captures) {
     const sizeBytes = cap.images?.[camId] ?? 0;
     const sizeStr   = sizeBytes ? `${(sizeBytes / 1024).toFixed(1)} kB` : '—';
-    const filename  = cap.filenames?.[camId] ?? `${camId}-${cap.event_id}.jpg`;
-    const dlUrl     = cap.event_id
-      ? `${BASE}/api/v1/captures/${cap.event_id}/${camId}.jpg`
-      : `${BASE}/api/v1/captures/${encodeURIComponent(filename)}`;
+    const filename  = cap.filenames?.[camId];
+    if (!filename) continue;
+    const dlUrl     = `${BASE}/api/v1/captures/${encodeURIComponent(filename)}`;
     const dlCol     = sizeBytes
       ? `<a href="${dlUrl}" download="${filename}" class="dl-btn" title="Download"><img src="${DL_ICON_URL}" alt=""></a>`
       : `<span class="cc-unavailable">—</span>`;
@@ -121,7 +120,7 @@ function renderCaptures(captures, camId) {
     const row = document.createElement('div');
     row.className = 'cap-row';
     row.innerHTML = `
-      <div class="cc cc-name" title="${cap.event_id ? `event: ${cap.event_id}` : `snapshot: ${filename}`}">${filename}</div>
+      <div class="cc cc-name" title="snapshot: ${filename}">${filename}</div>
       <div class="cc cc-date">${fmtDate(cap.captured_at)}</div>
       <div class="cc cc-size">${sizeStr}</div>
       <div class="cc cc-copy">${copyCol}</div>

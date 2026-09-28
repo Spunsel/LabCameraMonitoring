@@ -29,15 +29,16 @@
     <div class="hdr-side hdr-left">
       <span class="hdr-brand"><span class="hdr-title">camera-service</span> <span class="hdr-host">@ lab.bpm.in.tum.de</span></span>
     </div>
-    <div class="tabs">
+    <nav class="tabs" aria-label="Dashboard pages">
       <a href="#stream"    class="tab-btn" data-tab="stream" aria-label="Stream" title="Stream"><img class="tab-icon" src="dashboard/assets/icons/stream.svg" alt=""><span class="tab-label">stream</span></a>
       <a href="#snapshots" class="tab-btn" data-tab="snapshots" aria-label="Snapshots" title="Snapshots"><img class="tab-icon" src="dashboard/assets/icons/snapshots.svg" alt=""><span class="tab-label">snapshots</span></a>
-      <a href="#settings"  class="tab-btn" data-tab="settings" aria-label="Settings" title="Settings"><img class="tab-icon" src="dashboard/assets/icons/settings.svg" alt=""><span class="tab-label">settings</span></a>
-      <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
       <a href="#history"   class="tab-btn" data-tab="history" aria-label="History" title="History"><img class="tab-icon" src="dashboard/assets/icons/history.svg" alt=""><span class="tab-label">history</span></a>
-    </div>
+      <a href="#docs"      class="tab-btn" data-tab="docs" aria-label="Docs" title="Docs"><img class="tab-icon" src="dashboard/assets/icons/docs.svg" alt=""><span class="tab-label">docs</span></a>
+      <a href="#api" class="tab-btn" data-tab="api" aria-label="API Console" title="API Console"><img class="tab-icon" src="dashboard/assets/icons/api.svg" alt=""><span class="tab-label">API Console</span></a>
+    </nav>
     <div class="hdr-side hdr-right">
       <span id="uptime">—</span>
+      <a href="#settings"  class="tab-btn header-settings" data-tab="settings" aria-label="Settings" title="Settings"><img class="tab-icon" src="dashboard/assets/icons/settings.svg" alt=""></a>
       <button type="button" id="theme-toggle" class="theme-toggle"
               aria-label="Switch to light theme" title="Switch to light theme">
         <span class="theme-icon icon-sun" aria-hidden="true"></span>
@@ -57,6 +58,85 @@
   <div class="panel" id="panel-settings" aria-label="Camera settings">
     <div id="settings-access"></div>
     <div class="grid" id="settings-grid"></div>
+  </div>
+
+  <div class="panel" id="panel-api">
+    <main id="api-console" class="api-console" aria-label="API console">
+      <div class="api-console-layout">
+        <section class="api-console-card" aria-labelledby="api-request-title">
+          <h2 id="api-request-title">Request</h2>
+          <form id="api-request-form" autocomplete="off">
+            <div class="api-console-fields">
+              <label>Operation
+                <select name="operation" aria-describedby="api-operation-help"></select>
+              </label>
+              <label data-console="camera-field">Camera
+                <select name="camera"><option value="whiteboard">Whiteboard</option><option value="robot">Robot</option></select>
+              </label>
+              <label data-console="limit-field" hidden>Number of captures
+                <input name="limit" type="number" min="1" max="50" step="1" value="10">
+              </label>
+              <label data-console="filename-field" class="api-console-wide" hidden>Capture filename
+                <input name="filename" type="text" placeholder="whiteboard_20260926T184527973Z.jpg" spellcheck="false">
+              </label>
+              <div class="api-console-wide api-console-help" id="api-operation-help" data-console="help"></div>
+              <label data-console="body-field" class="api-console-wide" hidden>JSON body
+                <textarea name="body" rows="7" spellcheck="false">{
+  "values": {
+    "focus_automatic_continuous": 0,
+    "focus_absolute": 30
+  }
+}</textarea>
+              </label>
+              <div data-console="key-field" class="api-console-wide" hidden>
+                <label>Operator key
+                  <input name="operatorKey" type="password" autocomplete="off" maxlength="512" placeholder="Required for this operation">
+                </label>
+                <div class="api-console-actions">
+                  <small>Used only for protected requests. Kept on this page; never included in copied commands.</small>
+                  <button type="button" class="cap-btn" data-console="clear-key">clear key</button>
+                </div>
+              </div>
+            </div>
+            <div class="api-console-endpoint">
+              <strong data-console="method">GET</strong><code data-console="url"></code>
+              <div class="api-console-box-tools">
+              <button type="button" class="cap-btn" data-console="cancel" hidden>cancel</button>
+              <button type="submit" form="api-request-form" class="copy-btn api-console-execute" data-console="execute" title="Execute request" aria-label="Execute request"><img src="dashboard/assets/icons/run.svg" alt=""></button>
+                <button type="button" class="copy-btn" data-console="copy-url" title="Copy URL" aria-label="Copy URL"><img src="dashboard/assets/icons/copy.svg" alt=""></button>
+              </div>
+            </div>
+            <p class="b" data-console="validation" role="status"></p>
+          </form>
+          <div class="api-console-section-heading"><h2>curl command</h2></div>
+          <div class="api-console-code-box">
+            <div class="api-console-box-tools">
+              <button type="button" class="copy-btn" data-console="copy-curl" title="Copy command" aria-label="Copy command"><img src="dashboard/assets/icons/copy.svg" alt=""></button>
+            </div>
+            <pre class="api-code" tabindex="0" aria-label="Generated curl command"><code data-console="curl"></code></pre>
+          </div>
+          <p class="api-console-feedback" data-console="feedback" role="status" aria-live="polite"></p>
+        </section>
+        <section class="api-console-card" aria-labelledby="api-response-title">
+          <div class="api-console-section-heading"><h2 id="api-response-title">Response</h2></div>
+          <p data-console="status" role="status" aria-live="polite">No request sent yet.</p>
+          <code class="api-console-response-request" data-console="response-request"></code>
+          <a class="api-console-result-link" data-console="result-link" target="_blank" rel="noopener" hidden>Open saved capture</a>
+          <div data-console="image-result" hidden>
+            <img class="api-console-image" data-console="image" alt="Snapshot returned by the API">
+            <a class="api-console-result-link" data-console="download" download="snapshot.jpg">Download returned image</a>
+          </div>
+          <div class="api-console-code-box api-console-response-box">
+            <div class="api-console-box-tools"><button type="button" class="copy-btn" data-console="copy-response" title="Copy response body" aria-label="Copy response body" disabled><img src="dashboard/assets/icons/copy.svg" alt=""></button></div>
+            <pre class="api-code api-console-response" tabindex="0" aria-label="Response body"><code data-console="response"></code></pre>
+          </div>
+          <details class="api-console-response-headers">
+            <summary>Response headers</summary>
+            <pre class="api-code" tabindex="0"><code data-console="headers"></code></pre>
+          </details>
+        </section>
+      </div>
+    </main>
   </div>
 
   <div class="panel" id="panel-docs">
@@ -110,16 +190,6 @@
         <pre class="api-code"><code>saved_url=$(<span class="tok-command">curl</span> <span class="tok-flag">-fsS -X</span> <span class="tok-method">POST</span> <span class="tok-string">'<span class="api-docs-base">https://lab.bpm.in.tum.de/cameras</span>/api/v1/cameras/whiteboard/captures'</span>)
 <span class="tok-command">curl</span> <span class="tok-flag">-fsS</span> <span class="tok-string">"$saved_url"</span> <span class="tok-flag">-o</span> whiteboard.jpg</code></pre>
       </section>
-      <section class="api-docs-section" aria-labelledby="api-docs-controls">
-        <h2 id="api-docs-controls">Camera settings</h2>
-        <p>Read the camera's supported controls, current values, ranges and menu options. Changes affect all viewers and future captures.</p>
-        <pre class="api-code"><code>GET /api/v1/cameras/{camera_id}/controls
-PATCH /api/v1/cameras/{camera_id}/controls
-POST /api/v1/cameras/{camera_id}/controls/reset</code></pre>
-        <p>PATCH and reset require an operator key in the <code>X-Camera-Control-Key</code> header. For example, switch to manual focus and set its value:</p>
-        <pre class="api-code"><code>{"values":{"focus_automatic_continuous":0,"focus_absolute":30}}</code></pre>
-        <p>The response contains values read back from the camera. API values use the camera's native integers: exposure uses 0.1 ms units, pan/tilt use arcseconds. The dashboard displays milliseconds and degrees. Reset restores camera defaults, which may include 60 Hz anti-flicker.</p>
-      </section>
     </main>
   </div>
 
@@ -132,6 +202,6 @@ POST /api/v1/cameras/{camera_id}/controls/reset</code></pre>
     <div class="grid" id="recent-grid"></div>
   </div>
 
-  <script type="module" src="dashboard/assets/app.js?v=settings-layout-6"></script>
+  <script type="module" src="dashboard/assets/app.js?v=api-console-3"></script>
 </body>
 </html>

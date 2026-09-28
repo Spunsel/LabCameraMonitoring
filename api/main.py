@@ -22,7 +22,6 @@ from urllib.parse import urljoin
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
@@ -47,10 +46,10 @@ async def _capture_cleanup_loop(store: CaptureStore) -> None:
     while True:
         await asyncio.sleep(CAPTURE_CLEANUP_INTERVAL)
         try:
-            removed_events, removed_images = store.prune_expired()
-            if removed_events or removed_images:
+            removed_captures, removed_images = store.prune_expired()
+            if removed_captures or removed_images:
                 log.info("Pruned %d expired captures and %d old images",
-                         removed_events, removed_images)
+                         removed_captures, removed_images)
         except Exception:
             log.exception("Could not prune expired captures")
 
@@ -63,10 +62,10 @@ async def lifespan(app: FastAPI):
     app.state.camera_controls = CameraControls(settings)
     _store = CaptureStore(settings.storage.captures_dir)
     try:
-        removed_events, removed_images = _store.prune_expired()
-        if removed_events or removed_images:
+        removed_captures, removed_images = _store.prune_expired()
+        if removed_captures or removed_images:
             log.info("Pruned %d expired captures and %d old images",
-                     removed_events, removed_images)
+                     removed_captures, removed_images)
     except Exception:
         log.exception("Could not prune expired captures at startup")
     # Start stream-latency collectors for µStreamer-backed cameras
@@ -221,14 +220,6 @@ async def get_stream(camera_id: str, fps: int = 10) -> StreamingResponse:
 # ── Capture endpoints ─────────────────────────────────────────────────────────
 
 
-class CaptureResponse(BaseModel):
-    event_id: str
-    captured_at: str
-    images: dict[str, str]
-    filenames: dict[str, str] = {}   # camera_id → on-disk filename (<camera_id>_<UTC-ts>.jpg)
-    errors: dict[str, str] = {}
-
-
 def _public_capture_url(request: Request, image_path: str) -> str:
     """Resolve an API image path against the public URL prefix when configured."""
     public_base = settings.api.public_base_url
@@ -240,7 +231,7 @@ def _public_capture_url(request: Request, image_path: str) -> str:
 async def list_captures(
     limit: int = Query(default=10, ge=1, le=50),
 ) -> list[dict[str, Any]]:
-    """List complete flat pairs and older event folders, newest first."""
+    """List complete snapshot pairs, newest first."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
     return _store.list_captures(limit)
@@ -316,48 +307,6 @@ async def get_saved_metadata(stem: str) -> JSONResponse:
     if metadata is None:
         raise HTTPException(status_code=404, detail="Capture metadata not found")
     return JSONResponse(content=metadata, headers={"Cache-Control": "no-store"})
-
-
-@app.get(
-    "/api/v1/captures/{event_id}",
-    tags=["captures"],
-    response_model=CaptureResponse,
-)
-async def get_capture(event_id: str) -> CaptureResponse:
-    """Read an older event-folder capture until it expires."""
-    if _store is None:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    result = _store.get_legacy(event_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail=f"Capture {event_id!r} not found")
-    return CaptureResponse(**result)
-
-
-@app.get(
-    "/api/v1/captures/{event_id}/{camera_id}.jpg",
-    tags=["captures"],
-    response_class=Response,
-)
-async def get_capture_image(event_id: str, camera_id: str) -> Response:
-    """Read an older event-folder JPEG until it expires."""
-    if _store is None:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    path = _store.legacy_image_path(event_id, camera_id)
-    if path is None:
-        raise HTTPException(status_code=404, detail="Image not found")
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Image not found")
-    return Response(
-        content=data,
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": "no-store",
-            "X-Camera-Id": camera_id,
-            "X-Event-Id": event_id,
-        },
-    )
 
 
 # ── Monitoring endpoints ───────────────────────────────────────────────────────

@@ -146,7 +146,7 @@ body.history-view.history-stacked { height: auto; }
   display: flex;
   align-items: center;
 }
-.hdr-right { justify-content: flex-end; }
+.hdr-right { justify-content: flex-end; gap: 0.5rem; }
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -154,7 +154,7 @@ body.history-view.history-stacked { height: auto; }
   flex: 0 0 2rem;
   width: 2rem;
   height: 2rem;
-  margin-left: 0.75rem;
+  margin-left: 0;
   color: var(--strong-text);
   background: var(--control-bg);
   border: 1px solid var(--control-border);
@@ -244,7 +244,6 @@ body.history-view.history-stacked { height: auto; }
 }
 .tab-btn:hover  { color: var(--hover-text); border-color: var(--hover-border); background: var(--tab-hover-bg); }
 .tab-btn.active { color: var(--hover-text); border-color: var(--faint-text); background: var(--tab-active-bg); }
-.tab-icon { display: none; }
 
 .panel        { display: none; }
 .panel.active { display: block; }
@@ -304,6 +303,12 @@ body.history-view.history-stacked { height: auto; }
 .api-code .tok-flag { color: var(--syntax-flag); }
 .api-code .tok-string { color: var(--syntax-string); }
 .api-code .tok-key { color: var(--syntax-key); }
+.api-code .tok-number { color: var(--syntax-placeholder); }
+.api-code .tok-literal { color: var(--syntax-method); }
+
+.tab-icon { display: none; }
+.tab-btn.header-settings { flex: 0 0 2rem; width: 2rem; padding: 0; }
+.header-settings .tab-icon { display: block; width: 20px; height: 20px; }
 
 @media (max-width: 58rem) {
   .hdr-brand {
@@ -314,19 +319,14 @@ body.history-view.history-stacked { height: auto; }
 }
 
 @media (max-width: 54rem) {
-  .hdr { justify-content: center; }
+  .hdr { justify-content: space-between; gap: 0.75rem; }
+  .tabs { margin: 0 auto; }
   .hdr-left, #uptime { display: none; }
-  .hdr-right {
-    position: absolute;
-    right: 1.5rem;
-    flex: 0 0 auto;
-  }
-  .theme-toggle { margin-left: 0; }
+  .hdr-right { flex: 0 0 auto; }
 }
 
-@media (max-width: 38rem) {
+@media (max-width: 42rem) {
   .hdr { padding-left: 0.75rem; padding-right: 0.75rem; }
-  .hdr-right { right: 0.75rem; }
   .tab-btn {
     width: 2rem;
     padding: 0;
@@ -383,7 +383,7 @@ body.history-view.history-stacked { height: auto; }
   margin-bottom: 0.4rem;
 }
 
-/* Settings: two camera columns with independent collapsible control sections. */
+/* Settings: previews above one controls card per camera. */
 .camera-controls {
   font-family: 'Adwaita Sans', sans-serif;
   container-type: inline-size;
@@ -409,10 +409,9 @@ body.history-view.history-stacked { height: auto; }
 .camera-controls-access label { font-size: 12px; }
 .camera-controls-access input { flex: 1; min-width: 7rem; }
 .camera-settings-access.is-locked .camera-controls-status { flex-basis: 100%; }
-#settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-#settings-grid > div { min-width: 0; }
-.camera-settings-header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.4rem; }
-.camera-settings-header .cam-lbl { margin: 0; }
+#settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.camera-settings-column { min-width: 0; }
+.camera-settings-card { min-width: 0; margin-top: 0.5rem; padding: 1rem; border: 1px solid var(--panel-border); border-radius: 3px; background: var(--header-bg); }
 .camera-settings-refresh { display: inline-flex; align-items: center; gap: 0.35rem; }
 .camera-settings-refresh img { width: 14px; height: 14px; filter: brightness(0) invert(1); }
 :root[data-theme="light"] .camera-settings-refresh img { filter: brightness(0) opacity(0.75); }
@@ -634,3 +633,56 @@ body.history-view.history-stacked { height: auto; }
 :root[data-theme="light"] .copy-btn:hover img { filter: brightness(0); }
 .copy-btn.copy-success { color: var(--status-good); border-color: var(--status-good); }
 .copy-btn.copy-failed  { color: var(--status-bad); border-color: var(--status-bad); }
+
+/* The API workspace uses only the space left below the header and its gap. */
+body:has(#panel-api.active) { height: 100vh; height: 100dvh; min-height: 0; }
+#panel-api.active { display: flex; flex: 1 1 0; min-height: 0; }
+.api-console { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; min-height: 0; max-width: 86rem; margin: 0 auto; font-family: 'Adwaita Sans', sans-serif; }
+.api-console h2 { color: var(--strong-text); font-size: 14px; }
+.api-console p, .api-console small { overflow-wrap: anywhere; }
+.api-console small, .api-console-help { color: var(--muted-text); }
+.api-console-layout { display: grid; flex: 1 1 0; min-height: 0; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: stretch; }
+.api-console-card { min-width: 0; min-height: 0; max-height: 100%; overflow: auto; padding: 1rem; background: var(--header-bg); border: 1px solid var(--panel-border); border-radius: 3px; }
+.api-console-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.api-console-wide { grid-column: 1 / -1; }
+.api-console label { display: flex; flex-direction: column; gap: 0.3rem; color: var(--strong-text); }
+.api-console :is(input, select, textarea) { width: 100%; min-width: 0; border: 1px solid var(--control-border); border-radius: 3px; background: var(--control-bg); color: var(--strong-text); padding: 0.4rem 0.5rem; font: inherit; }
+.api-console textarea { resize: vertical; font-family: 'Adwaita Mono', monospace; font-size: 12px; }
+.api-console :focus-visible, .tab-btn:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.api-console-endpoint { position: relative; display: flex; align-items: baseline; gap: 0.5rem; margin: 1rem 0; min-height: calc(24px + 1rem + 2px); padding: 0.5rem 4.75rem 0.5rem 0.5rem; background: var(--code-bg); border: 1px solid var(--code-border); }
+.api-console-endpoint:has([data-console="cancel"]:not([hidden])) { padding-right: 8.75rem; }
+.api-console-endpoint code { min-width: 0; }
+.api-console-endpoint strong { color: var(--syntax-method); }
+.api-console-endpoint code, .api-console-response-request { overflow-wrap: anywhere; font-family: 'Adwaita Mono', monospace; font-size: 12px; }
+.api-console-actions, .api-console-section-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.65rem 0; }
+.api-console-actions small { flex: 1; min-width: 12rem; }
+.api-console-section-heading { justify-content: space-between; }
+.api-console .api-console-execute { border-color: var(--focus-color); }
+.api-console summary { cursor: pointer; color: var(--strong-text); }
+.api-console .api-code { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+/* Fifteen rendered lines plus code padding; the wrapper owns the border. */
+.api-console-response {
+  max-height: calc(22.5em + 1.5rem);
+  max-height: calc(15lh + 1.5rem);
+  overflow-y: auto;
+}
+.api-console-code-box { position: relative; margin: 0.7rem 0 1rem; border: 1px solid var(--code-border); background: var(--code-bg); }
+.api-console-box-tools { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1; display: flex; align-items: center; gap: 0.4rem; }
+.api-console-code-box > .api-code { margin: 0; padding-right: 3.25rem; border: 0; background: transparent; }
+.api-console-response-box > .api-console-box-tools { right: 1.5rem; }
+.api-console-response-box > .api-code { padding-right: 4.25rem; }
+.api-console .copy-btn:disabled { opacity: 0.5; }
+.api-console-response-box:has([data-console="response"]:empty) { display: none; }
+.api-console-response-request { display: block; margin: 0.5rem 0; color: var(--muted-text); }
+.api-console-image { display: block; width: 100%; height: auto; margin: 0.75rem 0; background: var(--image-bg); }
+.api-console-result-link { display: inline-block; color: var(--focus-color); margin: 0.4rem 0; }
+.api-console-feedback { margin-top: 0.5rem; color: var(--muted-text); }
+.api-console-feedback:empty { margin-top: 0; }
+.api-console [hidden] { display: none; }
+@media (max-width: 850px) {
+  body:has(#panel-api.active) { height: auto; min-height: 100vh; min-height: 100dvh; }
+  #panel-api.active { display: block; flex: 0 0 auto; }
+  .api-console { display: block; }
+  .api-console-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: max-content; align-items: start; }
+  .api-console-card { max-height: none; overflow: visible; }
+}
