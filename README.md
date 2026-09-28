@@ -6,6 +6,9 @@ Camera gateway for the BPM lab at TU München: current JPEG snapshots, saved
 captures, live MJPEG video, camera settings and request activity for the
 **whiteboard** and **robot** Logitech StreamCams.
 
+See [PERFORMANCE_UPDATE.md](PERFORMANCE_UPDATE.md) for the performance changes,
+focused regression checks, and deployment notes included in this ZIP.
+
 ## Dashboard
 
 Open [the dashboard](https://lab.bpm.in.tum.de/cameras/dashboard).
@@ -21,6 +24,10 @@ Settings is an icon-only entry beside the light/dark theme toggle.
 | API Console | `#api-console` | Execute selected finite requests and copy their URLs, curl commands and responses |
 | API CALLS | `#api-calls` | Operator-protected recent API requests; 500 retained in memory, 25/50/100 displayed |
 | Settings | `#settings` | Live previews, image controls, saved configurations, one-step undo |
+
+Snapshot measurements and live previews pause when their panel or browser tab is
+hidden. Snapshot history shows gaps during pauses; server-side stream history
+continues collecting.
 
 `#api` remains a compatibility alias for API Console. The Docs tab is different
 from FastAPI's generated `/docs` and `/redoc` pages.

@@ -1,10 +1,13 @@
 import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls, median, fmtTime } from './common.js';
 import { drawBarGraph, SNAP_GRAPH_OPTS } from './charts.js';
 import { pollCaptures } from './history.js';
+import { buildTimeline } from './timeline.js';
 
 const snapHist = {};
 const firstByteHist = {};
+const samples = {};
 CAMERAS.forEach(id => {
+  samples[id] = [];
   snapHist[id] = [];
   firstByteHist[id] = [];
 });
@@ -37,11 +40,12 @@ CAMERAS.forEach(id => {
   cg.appendChild(cs);
 });
 
-export async function measureSnapshot(id) {
+export async function measureSnapshot(id, signal) {
   const t0 = performance.now();
   let downloadMs = null, firstByteMs = null, blob = null;
   try {
     const r = await fetch(`${BASE}/api/v1/cameras/${id}/snapshot.jpg`, {
+      signal,
       cache: 'no-store',
       headers: { 'X-Camera-Background': '1' },
     });
@@ -56,14 +60,19 @@ export async function measureSnapshot(id) {
 
     downloadMs = performance.now() - t0;
   } catch {
+    if (signal?.aborted) return;
     downloadMs = null;
     firstByteMs = null;
   }
 
-  snapHist[id].push(downloadMs);
-  if (snapHist[id].length > TOTAL_SLOTS) snapHist[id].shift();
-  firstByteHist[id].push(firstByteMs);
-  if (firstByteHist[id].length > TOTAL_SLOTS) firstByteHist[id].shift();
+  if (signal?.aborted) return;
+
+  const now = Date.now();
+  samples[id].push({ timestamp: now, downloadMs, firstByteMs });
+  samples[id] = samples[id].filter(sample => sample.timestamp > now - TOTAL_SLOTS * 5000)
+    .slice(-TOTAL_SLOTS);
+  snapHist[id] = buildTimeline(samples[id], 'downloadMs', now, TOTAL_SLOTS);
+  firstByteHist[id] = buildTimeline(samples[id], 'firstByteMs', now, TOTAL_SLOTS);
 
   const last5   = snapHist[id].filter(v => v !== null).slice(-5);
   const median5 = median(last5);
@@ -140,7 +149,10 @@ export async function captureSnapshot(id) {
 }
 
 export function redrawSnapshotGraphs() {
-  CAMERAS.forEach(id => drawBarGraph('graph-snap-' + id, snapHist[id], SNAP_GRAPH_OPTS));
+  CAMERAS.forEach(id => {
+    snapHist[id] = buildTimeline(samples[id], 'downloadMs', Date.now(), TOTAL_SLOTS);
+    drawBarGraph('graph-snap-' + id, snapHist[id], SNAP_GRAPH_OPTS);
+  });
 }
 
 export function bindSnapshotControls() {

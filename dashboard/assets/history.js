@@ -1,4 +1,5 @@
 import { BASE, CAMERAS, CAM_LABEL, fmtDate } from './common.js';
+import { createPoller } from './polling.js';
 
 const DL_ICON_URL = new URL('icons/download.svg', import.meta.url).href;
 const COPY_ICON_URL = new URL('icons/copy.svg', import.meta.url).href;
@@ -21,11 +22,12 @@ function formatBytes(bytes) {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
-async function pollStorageSummary() {
+async function pollStorageSummary(signal) {
   try {
-    const r = await fetch(`${BASE}/api/v1/captures/stats`, { headers: { 'X-Camera-Background': '1' } });
+    const r = await fetch(`${BASE}/api/v1/captures/stats`, { signal, headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     const summary = await r.json();
+    if (signal.aborted) return;
     jpgBytesEl.textContent = formatBytes(summary.jpg_bytes);
     jsonBytesEl.textContent = formatBytes(summary.json_bytes);
     jpgBytesEl.title = `${summary.jpg_bytes} bytes`;
@@ -39,6 +41,7 @@ async function pollStorageSummary() {
       : 'never';
     cleanupEl.title = cleanup ?? '';
   } catch {
+    if (signal.aborted) return;
     jpgBytesEl.textContent = '—';
     jsonBytesEl.textContent = '—';
     cleanupEl.textContent = '—';
@@ -129,14 +132,15 @@ function renderCaptures(captures, camId) {
   }
 }
 
-export async function pollCaptures() {
-  pollStorageSummary();
+async function fetchCaptures(signal) {
   let data;
   try {
-    const r = await fetch(`${BASE}/api/v1/captures?limit=50`, { headers: { 'X-Camera-Background': '1' } });
+    const r = await fetch(`${BASE}/api/v1/captures?limit=50`, { signal, headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     data = await r.json();
   } catch { return; }
+
+  if (signal.aborted) return;
 
   for (const id of CAMERAS) {
     const limit = Math.min(50, Math.max(1,
@@ -146,19 +150,21 @@ export async function pollCaptures() {
   updateHistoryLayout();
 }
 
-let capturesInterval = null;
+const historyPoller = createPoller(signal => Promise.all([
+  fetchCaptures(signal), pollStorageSummary(signal),
+]), 15_000);
+
+export function pollCaptures() {
+  return historyPoller.refresh();
+}
 
 export function startHistory() {
   updateHistoryLayout();
-  pollCaptures();
-  if (!capturesInterval) capturesInterval = setInterval(pollCaptures, 15_000);
+  historyPoller.start();
 }
 
 export function stopHistory() {
-  if (capturesInterval) {
-    clearInterval(capturesInterval);
-    capturesInterval = null;
-  }
+  historyPoller.stop();
 }
 
 async function copyLink(url) {

@@ -47,7 +47,7 @@ async def _capture_cleanup_loop(store: CaptureStore) -> None:
     while True:
         await asyncio.sleep(CAPTURE_CLEANUP_INTERVAL)
         try:
-            removed_captures, removed_images = store.prune_expired()
+            removed_captures, removed_images = await asyncio.to_thread(store.prune_expired)
             if removed_captures or removed_images:
                 log.info("Pruned %d expired captures and %d old images",
                          removed_captures, removed_images)
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
     app.state.camera_controls = CameraControls(settings)
     _store = CaptureStore(settings.storage.captures_dir)
     try:
-        removed_captures, removed_images = _store.prune_expired()
+        removed_captures, removed_images = await asyncio.to_thread(_store.prune_expired)
         if removed_captures or removed_images:
             log.info("Pruned %d expired captures and %d old images",
                      removed_captures, removed_images)
@@ -238,7 +238,7 @@ async def list_captures(
     """List complete snapshot pairs, newest first."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    return _store.list_captures(limit)
+    return await asyncio.to_thread(_store.list_captures, limit)
 
 
 @app.get("/api/v1/captures/stats", tags=["captures"])
@@ -246,7 +246,7 @@ async def capture_storage_stats() -> dict[str, int | str | None]:
     """On-disk JPG/JSON usage and time of the last complete cleanup."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    return _store.storage_summary()
+    return await asyncio.to_thread(_store.storage_summary)
 
 
 @app.post(
@@ -289,12 +289,8 @@ async def get_saved_image(stem: str) -> Response:
     """Return a JPEG from a complete flat pair."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    path = _store.flat_image_path(stem)
-    if path is None:
-        raise HTTPException(status_code=404, detail="Image not found")
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
+    data = await asyncio.to_thread(_store.read_image, stem)
+    if data is None:
         raise HTTPException(status_code=404, detail="Image not found")
     return Response(
         content=data,
@@ -308,7 +304,7 @@ async def get_saved_metadata(stem: str) -> JSONResponse:
     """Return the JSON sidecar of a complete flat pair."""
     if _store is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    metadata = _store.flat_metadata(stem)
+    metadata = await asyncio.to_thread(_store.flat_metadata, stem)
     if metadata is None:
         raise HTTPException(status_code=404, detail="Capture metadata not found")
     return JSONResponse(content=metadata, headers={"Cache-Control": "no-store"})

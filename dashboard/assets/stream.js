@@ -11,7 +11,7 @@ CAMERAS.forEach(id => {
     <div class="cam-lbl"><span class="dot" id="dot-${id}">●</span>${CAM_LABEL[id]}</div>
     <div class="img-box">
       <img id="stream-img-${id}" data-src="${BASE}/api/v1/cameras/${id}/stream.mjpeg"
-           src="${BASE}/api/v1/cameras/${id}/stream.mjpeg" alt="${id}">
+           alt="${id}">
     </div>
     <div class="cam-bottom">
       <div class="cam-stats">
@@ -45,16 +45,19 @@ function buildTimestampedHistory(history, intervalSeconds) {
 
 const STATE_CLS = { live: 'g', starting: 'm', stale: 'w', offline: 'b', disconnected: 'b' };
 
-export async function pollStreamMetrics() {
+export async function pollStreamMetrics(signal) {
   let data;
   try {
-    const r = await fetch(`${BASE}/api/v1/stream-metrics`, { headers: { 'X-Camera-Background': '1' } });
+    const r = await fetch(`${BASE}/api/v1/stream-metrics`, { signal, headers: { 'X-Camera-Background': '1' } });
     if (!r.ok) throw new Error();
     data = await r.json();
   } catch {
+    if (signal?.aborted) return;
     CAMERAS.forEach(id => document.getElementById(`stream-fps-${id}`).textContent = '—');
     return;
   }
+
+  if (signal?.aborted) return;
 
   for (const id of CAMERAS) {
     const cam = data.cameras?.[id];

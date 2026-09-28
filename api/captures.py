@@ -10,10 +10,15 @@ The shared filename stem identifies one snapshot. File pairs expire after 48 hou
 
 from __future__ import annotations
 
+import asyncio
+import copy
 import json
 import logging
 import re
 import secrets
+import threading
+import time
+from functools import wraps
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,6 +30,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 CAPTURE_RETENTION = timedelta(days=2)
 _STEM = re.compile(r"^(?P<camera>[A-Za-z0-9_-]+)_(?P<time>[0-9]{8}T[0-9]{9}Z)$")
+
+
+def _locked(method):
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return call
 
 
 @dataclass
@@ -89,8 +102,23 @@ class CaptureStore:
         self._root = captures_dir
         self._root.mkdir(parents=True, exist_ok=True)
         self.last_successful_cleanup: datetime | None = None
+        self._lock = threading.RLock()
+        self._cache: dict[str, tuple[float, Any]] = {}
+        self.cache_seconds = 15.0
 
+    def _cached(self, key, build):
+        entry = self._cache.get(key)
+        if entry is None or time.monotonic() >= entry[0]:
+            value = build()
+            entry = (time.monotonic() + self.cache_seconds, value)
+            self._cache[key] = entry
+        return copy.deepcopy(entry[1])
+
+    @_locked
     def storage_summary(self) -> dict[str, int | str | None]:
+        return self._cached("summary", self._storage_summary)
+
+    def _storage_summary(self) -> dict[str, int | str | None]:
         """Size of saved top-level JPG and JSON files."""
         totals = {"jpg_bytes": 0, "json_bytes": 0}
 
@@ -124,6 +152,15 @@ class CaptureStore:
             raise RuntimeError(f"Camera {camera_id!r} failed to capture") from exc
 
         received_at = datetime.now(tz=timezone.utc)
+        return await asyncio.to_thread(
+            self._save, camera_id, data, width_px, height_px, received_at
+        )
+
+    @_locked
+    def _save(self, camera_id: str, data: bytes, width_px: int,
+              height_px: int, received_at: datetime) -> CaptureResult:
+        # Invalidate before writes, including interrupted/partially failed writes.
+        self._cache.clear()
         # Exclusive creation works across workers/processes, not just tasks.
         for offset in range(10_000):
             stem = f"{camera_id}_{_timestamp(received_at + timedelta(milliseconds=offset))}"
@@ -171,6 +208,7 @@ class CaptureStore:
             )
         raise OSError("Could not allocate a unique snapshot filename")
 
+    @_locked
     def flat_metadata(self, stem: str) -> dict[str, Any] | None:
         """Return a complete, valid flat pair; ignore unfinished writes."""
         match = _STEM.fullmatch(stem)
@@ -196,7 +234,22 @@ class CaptureStore:
             return None
         return self._root / f"{stem}.jpg"
 
+    @_locked
+    def read_image(self, stem: str) -> bytes | None:
+        # Keep validation and read under the same lock as retention cleanup.
+        path = self.flat_image_path(stem)
+        if path is None:
+            return None
+        try:
+            return path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    @_locked
     def list_captures(self, limit: int) -> list[dict[str, Any]]:
+        return self._cached("latest", lambda: self._list_captures(50))[:limit]
+
+    def _list_captures(self, limit: int) -> list[dict[str, Any]]:
         """List complete snapshot pairs, newest first."""
         candidates: list[tuple[float, Path]] = []
         for path in self._root.iterdir():
@@ -231,12 +284,14 @@ class CaptureStore:
                 log.warning("Could not list capture %s: %s", path, exc)
         return results
 
+    @_locked
     def prune_expired(self, now: datetime | None = None) -> tuple[int, int]:
         """Delete snapshot pairs and orphaned JPEGs older than 48 hours."""
         current = now or datetime.now(tz=timezone.utc)
         if current.tzinfo is None:
             raise ValueError("prune_expired requires a timezone-aware datetime")
         cutoff = current - CAPTURE_RETENTION
+        self._cache.clear()
         removed_captures = 0
         removed_orphans = 0
         had_errors = False

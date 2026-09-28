@@ -1,5 +1,9 @@
 # Verification
 
+**Current ZIP:** see [PERFORMANCE_UPDATE.md](PERFORMANCE_UPDATE.md) for the 18
+focused tests included and run for this update. The historical suites listed
+below were absent from the supplied attachment and were not rerun.
+
 Reviewed against the packaged source on **2026-09-28**. Current automated suites
 are listed below; the old `test_api.py`, `test_cameras.py` and `conftest.py` from
 the initial scaffold are not present in this package.

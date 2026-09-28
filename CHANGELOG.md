@@ -10,6 +10,15 @@ those historical entries describe their dates only.
 
 ## [Unreleased]
 
+### Performance — 2026-09-28
+
+- Offloaded capture filesystem operations and coordinated reads/writes/cleanup.
+- Added shared 15-second capture listing and storage-statistics caches.
+- Paused hidden previews and unnecessary snapshot/metric/history polling.
+- Added cancellable polling without overlapping cycles and timestamped snapshot gaps.
+- Added 12 backend and 6 JavaScript regression checks; see
+  [PERFORMANCE_UPDATE.md](PERFORMANCE_UPDATE.md) for exact verification limits.
+
 ### Removed — 2026-09-28
 
 - Dashboard resolution/target-FPS selectors and mode discovery/write API routes.

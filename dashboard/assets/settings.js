@@ -2,6 +2,7 @@ import { BASE, CAMERAS, CAM_LABEL, retryLivePreview } from './common.js';
 import { CameraControlsPanel, CameraControlsAccess, refreshCameraControls } from './controls.js';
 
 const previews = [];
+let settingsActive = false;
 const grid = document.getElementById('settings-grid');
 
 CAMERAS.forEach(id => {
@@ -34,6 +35,8 @@ CAMERAS.forEach(id => {
 new CameraControlsAccess(document.getElementById('settings-access'));
 
 export function setSettingsActive(active) {
+  if (settingsActive === active) return;
+  settingsActive = active;
   previews.forEach(preview => {
     if (active) {
       if (!preview.getAttribute('src')) preview.src = preview.dataset.src;
