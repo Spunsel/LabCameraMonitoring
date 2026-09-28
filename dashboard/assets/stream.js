@@ -1,4 +1,4 @@
-import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls, reconnectCameraPreviews, retryLivePreview } from './common.js';
+import { BASE, CAMERAS, CAM_LABEL, TOTAL_SLOTS, latCls, retryLivePreview } from './common.js';
 import { drawBarGraph, STREAM_GRAPH_OPTS } from './charts.js';
 
 const streamHist = {};
@@ -96,8 +96,6 @@ export async function pollStreamMetrics() {
   }
 }
 
-const captureModes = new Map();
-
 export function updateStreamStatus(data) {
   if (!data) {
     CAMERAS.forEach(id => {
@@ -107,11 +105,6 @@ export function updateStreamStatus(data) {
     return;
   }
   for (const [id, cam] of Object.entries(data.cameras)) {
-    const mode = `${cam.resolution}:${cam.fps}`;
-    if (cam.available && cam.resolution) {
-      if (captureModes.has(id) && captureModes.get(id) !== mode) reconnectCameraPreviews(id);
-      captureModes.set(id, mode);
-    }
     document.getElementById('dot-' + id).className = 'dot ' + (cam.available ? 'on' : 'off');
     document.getElementById('stream-res-' + id).textContent = cam.resolution ?? '—';
   }

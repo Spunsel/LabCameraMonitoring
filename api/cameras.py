@@ -159,6 +159,23 @@ class UStreamerCameraSource:
         except Exception:
             return False
 
+    async def read_stream_status(self) -> dict | None:
+        """Read resolution and target FPS; never configure or restart the source."""
+        try:
+            response = await self._get_client().get('/state', timeout=2)
+            response.raise_for_status()
+            source = response.json()['result']['source']
+            if not source['online']:
+                return None
+            result = {'width': source['resolution']['width'],
+                      'height': source['resolution']['height'],
+                      'fps': source['desired_fps']}
+            if any(type(value) is not int or value <= 0 for value in result.values()):
+                return None
+            return result
+        except (httpx.HTTPError, ValueError, TypeError, KeyError):
+            return None
+
     async def close(self) -> None:
         if self._client and not self._client.is_closed:
             await self._client.aclose()

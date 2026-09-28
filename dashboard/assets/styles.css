@@ -704,12 +704,6 @@ body:has(#panel-api-console.active) { height: 100vh; height: 100dvh; min-height:
 }
 
 
-/* Capture mode uses the same collapsible section and paired fields as image controls. */
-.camera-capture-mode .camera-control-label { display: block; margin-bottom: 0.4rem; }
-.camera-capture-mode-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0 0 0.8rem; }
-.camera-capture-mode-actions .cap-btn { flex-shrink: 0; }
-.camera-capture-mode form > .camera-controls-status:not(:empty) { margin-bottom: 0.8rem; }
-
 /* Recent API activity: one full-width card, shared theme tokens. */
 .api-calls { padding: 1rem; border: 1px solid var(--panel-border); border-radius: 3px; background: var(--header-bg); min-width: 0; }
 .api-calls-heading h1, .api-calls-heading p, .api-calls-meta, .api-calls-note, .api-calls-access p { font-family: 'Adwaita Sans', sans-serif; }

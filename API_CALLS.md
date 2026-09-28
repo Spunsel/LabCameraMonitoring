@@ -95,7 +95,6 @@ python -m pytest -q
 node tests/test_api_calls.mjs
 node tests/test_api_console.mjs
 node tests/test_controls_ui.mjs
-node tests/test_capture_mode_ui.mjs
 ```
 
 Validated authentication, privacy exclusions, failures, bounded retention, incremental

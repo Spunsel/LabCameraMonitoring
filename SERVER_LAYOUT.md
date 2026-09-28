@@ -14,14 +14,13 @@ use the active configuration to determine current storage and capture modes.
 | `api/settings.py` | Loads the YAML selected by `CAMERA_SERVICE_CONFIG` into typed models |
 | `api/controls.py` | Operator-key authorization, V4L2 image controls, saved-config routes and in-memory undo |
 | `api/camera_configs.py` | Persistent named image configurations |
-| `api/capture_modes.py` | MJPEG mode discovery, helper invocation and image-setting restoration |
 | `api/stream_metrics.py` | Persistent header-only collector, five-second aggregation and in-memory history |
 | `api/activity.py` | Bounded API-call recorder and protected incremental activity endpoint |
 | `dashboard/index.html` | All dashboard page panels and navigation |
 | `dashboard/assets/app.js` | Hash navigation, uptime, polling and page lifecycle |
 | `dashboard/assets/stream.js`, `snapshots.js`, `charts.js` | Image views and timing charts |
 | `dashboard/assets/history.js` | Capture lists, downloads, copy links and storage summary |
-| `dashboard/assets/settings.js`, `controls.js`, `capture-mode.js` | Camera settings, operator access, dialogs and staged mode changes |
+| `dashboard/assets/settings.js`, `controls.js` | Image settings, operator access and configuration dialogs |
 | `dashboard/assets/api-console.js`, `api-calls.js` | Request console and recent-call table |
 | `dashboard/assets/common.js`, `theme.js`, `syntax-highlight.js` | Shared functions, theme selection and code formatting |
 | `dashboard/assets/styles.css`, `fonts/`, `icons/` | Responsive layout and self-hosted visual assets |
@@ -46,12 +45,6 @@ it is not part of the HTTP application.
 | `/etc/camera-service/robot.env` | Robot equivalent |
 | `/etc/camera-service/controls.env` | Shared `CAMERA_SERVICE_CONTROLS_TOKEN`, read at API startup |
 | `/etc/systemd/system/camera-api.service.d/controls.conf` | Drop-in installed by `deployment/setup-controls.sh` |
-| `/etc/camera-service/capture-mode-policy.json` | Root-owned camera/device/port policy installed by capture-mode setup |
-| `/usr/local/libexec/camera-capture-mode` | Installed standalone helper for one-camera mode transactions |
-| `/etc/sudoers.d/camera-capture-mode` | Allows the API user to invoke only the fixed-purpose helper |
-| `/etc/camera-service/capture-modes/whiteboard.env` and `robot.env` | Optional persistent resolution/FPS overrides |
-| `/etc/systemd/system/camera-capture@whiteboard.service.d/90-capture-mode.conf` and robot equivalent | Loads each override after its base `.env` |
-| `/run/camera-service-mode/` | Per-camera helper locks; runtime files |
 | `/etc/nginx/cpee.d/locations.d/camera` | Installed routing snippet; surrounding server owns TLS and website access |
 
 The API unit uses `After`/`Wants` for the capture services; it does not require
@@ -64,7 +57,8 @@ The reported camera mapping is whiteboard serial `51EF0655`, port 8101, and
 robot serial `DA702655`, port 8102. USB bus paths can change when cabling changes.
 The latest supplied driver output reported **1920×1080 MJPEG at 30 FPS** on both
 cameras; this is a dated readback, not a fixed deployment requirement. Base
-examples still use 1280×720/30. Read `/state` and active overrides for current mode.
+examples still use 1280×720/30. Read `/state` for the current mode; base camera `.env` files supply startup settings.
+Remove legacy dashboard mode overrides using [REMOVAL_NOTES.md](REMOVAL_NOTES.md).
 
 ## Persistent and temporary state
 
@@ -72,7 +66,6 @@ examples still use 1280×720/30. Read `/state` and active overrides for current 
 | --- | --- |
 | Saved captures | `storage.captures_dir`; flat JPEG/JSON pairs; 48-hour retention |
 | Named image configurations | `storage.camera_configs_dir`, or `camera-configs` beside captures; no capture retention |
-| Capture-mode overrides | Root-owned `.env` overrides; survive reboot |
 | Undo state and per-camera locks | API process memory; cleared at restart |
 | Stream metric history | Up to 360 nonempty aggregation slots per camera; cleared at restart |
 | Recent API calls | Latest 500 recorded requests; cleared at restart |
@@ -114,8 +107,8 @@ flowchart TD
   `/?action=stream`. FastAPI is bypassed. Its separate fallback stream route is
   used on direct API access instead.
 - **Settings:** ordinary image controls use asynchronous `v4l2-ctl` commands.
-  Capture-mode writes additionally invoke the installed helper to restart one
-  capture service and verify the resulting mode.
+  Resolution/FPS selection and capture-service restart operations are not exposed
+  by the application.
 - **API CALLS:** the protected endpoint reads memory only. It cannot observe
   Nginx-rejected requests or direct µStreamer traffic.
 

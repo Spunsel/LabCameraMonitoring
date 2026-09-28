@@ -13,7 +13,7 @@ export const OPERATIONS = [
   { id: 'reset-controls', label: 'Restore camera defaults', method: 'POST', camera: true, suffix: '/controls/reset', key: true, help: 'Restore driver defaults, including automatic modes and anti-flicker. This affects all viewers.' },
   { id: 'access', label: 'Check operator key', method: 'GET', camera: true, suffix: '/controls/access', key: true, help: 'Check whether the operator key is accepted without changing settings.' },
   { id: 'cameras', label: 'List cameras', method: 'GET', path: '/api/v1/cameras', help: 'List cameras and their snapshot and stream URLs.' },
-  { id: 'status', label: 'Get service status', method: 'GET', path: '/api/v1/status', help: 'Read API uptime, camera availability, and configured resolution/FPS.' },
+  { id: 'status', label: 'Get service status', method: 'GET', path: '/api/v1/status', help: 'Read API uptime, camera availability, and reported resolution/FPS.' },
   { id: 'metrics', label: 'Get stream metrics', method: 'GET', path: '/api/v1/stream-metrics', help: 'Read observed stream state, FPS sample counts, and latency history.' },
   { id: 'storage', label: 'Get capture storage statistics', method: 'GET', path: '/api/v1/captures/stats', help: 'Read saved image/metadata sizes and the last successful cleanup time.' },
   { id: 'health', label: 'Check API health', method: 'GET', path: '/healthz', help: 'Check whether the API process responds.' },

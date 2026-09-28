@@ -35,16 +35,6 @@ export function fmtTime(d) {
 }
 
 
-// Reconnect only previews that are currently active; hidden pages stay disconnected.
-export function reconnectCameraPreviews(cameraId) {
-  for (const prefix of ['settings-img-', 'stream-img-']) {
-    const image = document.getElementById(prefix + cameraId);
-    if (image?.getAttribute('src')) {
-      image.src = `${image.dataset.src}?reconnect=${Date.now()}`;
-    }
-  }
-}
-
 export function retryLivePreview(image) {
   let timer;
   image.addEventListener('error', () => {

@@ -20,7 +20,7 @@ Settings is an icon-only entry beside the light/dark theme toggle.
 | Docs | `#docs` | Embedded snapshot/capture integration guide |
 | API Console | `#api-console` | Execute selected finite requests and copy their URLs, curl commands and responses |
 | API CALLS | `#api-calls` | Operator-protected recent API requests; 500 retained in memory, 25/50/100 displayed |
-| Settings | `#settings` | Live previews, image controls, saved configurations, one-step undo and capture mode |
+| Settings | `#settings` | Live previews, image controls, saved configurations, one-step undo |
 
 `#api` remains a compatibility alias for API Console. The Docs tab is different
 from FastAPI's generated `/docs` and `/redoc` pages.
@@ -51,7 +51,6 @@ retrieves a JPEG.
 | [SERVER_LAYOUT.md](SERVER_LAYOUT.md) | Source modules, installed files, storage and request paths |
 | [LAB_COMMANDS.md](LAB_COMMANDS.md) | SSH diagnosis and operational commands, in German |
 | [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) | Operator key, image controls, saved configurations and undo |
-| [CAPTURE_MODE.md](CAPTURE_MODE.md) | Resolution/FPS discovery, privileged helper, persistence and rollback |
 | [API_CONSOLE.md](API_CONSOLE.md) | Interactive request console and its supported operations |
 | [API_CALLS.md](API_CALLS.md) | Recent activity, exclusions, authorization and incremental retrieval |
 | [TESTDOCUMENTATION.md](TESTDOCUMENTATION.md) | Current automated suites and lab checks |
@@ -89,8 +88,6 @@ any public request.
 | POST | `/api/v1/cameras/{camera_id}/controls/configs` | Save current image settings under a name | Yes |
 | POST | `/api/v1/cameras/{camera_id}/controls/configs/{config_id}/load` | Apply saved image settings | Yes |
 | POST | `/api/v1/cameras/{camera_id}/controls/undo` | Restore the state before the preceding change using its undo token | Yes |
-| GET | `/api/v1/cameras/{camera_id}/controls/capture-mode` | Current and supported resolution/FPS combinations | No |
-| PATCH | `/api/v1/cameras/{camera_id}/controls/capture-mode` | Apply a supported MJPEG mode; restarts one capture service | Yes |
 | GET | `/openapi.json` | Current machine-readable API specification | No |
 | GET | `/docs` | Generated Swagger UI | No |
 | GET | `/redoc` | Generated ReDoc UI | No |
@@ -228,8 +225,8 @@ FPS=30
 ```
 
 The YAML does not launch or reconfigure µStreamer. Its device/port mapping must
-match these files. Capture-mode overrides, if installed, take precedence for
-resolution and FPS. Both Python adapters currently connect to `127.0.0.1`;
+match these files. Resolution/FPS changes are managed only in the server capture
+configuration. Both Python adapters currently connect to `127.0.0.1`;
 changing `ustreamer.host` in YAML does not redirect them. Uvicorn's listen address
 and port are also set by the launch command/unit, not by the YAML `api.host/port`.
 
@@ -245,9 +242,10 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Enable image controls using [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md). To enable
-resolution/FPS changes, also follow [CAPTURE_MODE.md](CAPTURE_MODE.md), including
-the proxy-timeout note. The current authentication model is a **single shared
+Enable image controls using [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md). Resolution/FPS
+selection and its privileged restart helper have been removed. Existing installations
+should follow [REMOVAL_NOTES.md](REMOVAL_NOTES.md) to remove the old server files.
+The current authentication model is a **single shared
 operator key**, not individual accounts or revocable personal keys.
 
 ## Updating an existing installation
@@ -274,9 +272,8 @@ server virtual environment from an archive.
 | `api/` or active production YAML | Restart `camera-api.service` |
 | Python requirements | Install requirements in the server venv, then restart the API |
 | Base systemd units | Copy them, daemon-reload, restart affected units |
-| Camera `.env` / mode override | Restart only that camera's capture unit; expect an interruption |
+| Camera base `.env` | Restart only that camera's capture unit; expect an interruption |
 | Nginx location snippet | Copy/merge, run `nginx -t`, then reload Nginx |
-| Installed capture-mode helper/setup | Re-run its setup script; see its guide |
 
 ```bash
 sudo systemctl restart camera-api.service

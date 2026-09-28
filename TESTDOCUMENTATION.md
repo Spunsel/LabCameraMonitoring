@@ -15,9 +15,7 @@ or frontend build is required.
 node tests/test_api_calls.mjs
 node tests/test_api_console.mjs
 node tests/test_controls_ui.mjs
-node tests/test_capture_mode_ui.mjs
 bash -n deployment/setup-controls.sh
-bash -n deployment/setup-capture-mode.sh
 ```
 
 | Suite | Scope |
@@ -25,16 +23,17 @@ bash -n deployment/setup-capture-mode.sh
 | `tests/test_captures.py` | Flat pairs, metadata/dimensions, collision handling, retention, statistics, capture routes and schema |
 | `tests/test_controls.py` | V4L2 fixture parsing, access checks, ranges, modes, readback, reset and device errors |
 | `tests/test_camera_configs.py` | Persistent named configurations, load ordering, one-step undo, stale and partial-change cases |
-| `tests/test_capture_modes.py` | Mode discovery, validated helper transactions, mode persistence/rollback and settings restoration |
+| `tests/test_source_status.py` | Read-only source status, invalid/offline responses and absence of removed mode routes |
 | `tests/test_activity.py` | Authorization, bounded/incremental history, restart, exclusions, privacy, errors and unchanged response chunks |
 | `tests/test_api_console.mjs` | Request construction, curl quoting, response display, keys, cancellation and duplicate-write prevention |
 | `tests/test_controls_ui.mjs` | Settings controls/access, save/discard, load/abort, undo and preview lifecycle |
-| `tests/test_capture_mode_ui.mjs` | Staged mode selection, confirmation, access/busy state and reconnection |
 | `tests/test_api_calls.mjs` | Incremental rows, limits, safe text rendering, restart reset, hidden-page polling and navigation |
 
-The API CALLS implementation was checked on 2026-09-28: **82 backend tests and
-all four JavaScript suites passed**. That is a recorded result, not a guarantee
-that any future dependency installation has been tested. Python tests use fake
+After removing resolution/FPS switching on 2026-09-28, **71 backend tests and
+all three JavaScript suites passed**. This run includes source-status readback
+and checks that the removed mode endpoints return 404. The earlier API CALLS
+implementation recorded 82 backend tests and four JavaScript suites before
+mode-specific tests were removed. Python tests use fake
 camera/subprocess responses and temporary storage. Node tests use DOM stand-ins
 and mocked HTTP responses. They do not establish physical-camera behavior or
 visual browser layout. No automated live-lab test is claimed.
@@ -106,7 +105,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 ```
 
 Expect 404 for missing metadata and 400 for a capture POST with a body. The
-specification includes controls/configs/undo, capture mode and activity as well
+specification includes controls/configs/undo and activity as well
 as the core camera routes.
 
 ## API CALLS checks
@@ -135,24 +134,17 @@ unset CAMERA_CONTROLS_KEY
    automatically accepts the new session. Restarting solely for this test is
    unnecessary if the automated reset checks are sufficient.
 
-## Settings and capture-mode checks
+## Settings checks
 
-Use a controlled lab session; image-control and mode writes affect all viewers.
+Use a controlled lab session; image-control writes affect all viewers.
 Save the desired image configuration first. Follow
-[CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) and [CAPTURE_MODE.md](CAPTURE_MODE.md):
+[CAMERA_CONTROLS.md](CAMERA_CONTROLS.md):
 
 - Verify read-only mode, unlocking and locking both camera panels.
 - Test one image change, one-step undo, save/discard and load/switch/abort.
 - Pan/tilt need enough zoom to have a visible effect on these cameras.
 - Distinguish driver defaults from a saved configuration; reset is not a factory
   reset. Auto-controlled numerical values need not equal manual defaults.
-- After capture-mode setup, stage a supported resolution/FPS pair. Cancelling
-  confirmation must not restart the camera; applying interrupts one camera.
-- Verify readback, new JPEG dimensions, preview recovery and restored image
-  settings. Reapply the original mode separately: image-control undo/configs do
-  not restore capture mode.
-- If a proxy/browser request times out, refresh current mode before retrying:
-  the server-side transaction may still complete.
 
 ## Visual and performance checks
 

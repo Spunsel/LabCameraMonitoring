@@ -17,16 +17,15 @@ is deployed or visually verified on the lab server.
 | Image settings | Shared operator key, supported V4L2 controls and driver-default reset |
 | Saved configurations | Named per-camera image settings persisted on disk |
 | Undo | One preceding image-control mutation, protected by a private token and stale-state checks |
-| Capture mode | Supported integer MJPEG resolution/FPS pairs; optional installed helper, one-camera restart and rollback |
 | API CALLS | Protected 500-record in-memory history, incremental visible-page updates and 25/50/100 displayed rows |
-| Automated checks | 82 backend tests and four JS suites passed during the API CALLS implementation |
+| Automated checks | 71 backend tests and three JS suites passed after removing resolution/FPS switching |
 
 ## Remaining validation and scope
 
-- Confirm latest deployment on lab, including operator access and capture-mode
-  helper/drop-ins if those features are enabled.
+- Confirm latest deployment on lab, including operator access and removal of
+  the legacy mode helper/drop-ins using [REMOVAL_NOTES.md](REMOVAL_NOTES.md).
 - Verify current browser layout at wide/narrow sizes in both themes.
-- Verify physical camera changes, restoration and mode restart/recovery.
+- Verify physical image-control changes and restoration.
 - Compare live snapshot/stream performance before and after changes; the recorded
   request-recorder benchmark is synthetic.
 - Individual revocable keys/accounts, persistent request history, settings-change

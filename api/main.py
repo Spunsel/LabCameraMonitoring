@@ -26,7 +26,6 @@ from fastapi.staticfiles import StaticFiles
 from api.cameras import CameraSource, UStreamerCameraSource, build_camera_registry
 from api.captures import CaptureResult, CaptureStore
 from api.controls import CameraControls, router as controls_router
-from api.capture_modes import CaptureModes, router as capture_modes_router
 from api.settings import load_settings
 from api import stream_metrics
 from api.activity import ActivityStore, ActivityMiddleware, router as activity_router
@@ -63,7 +62,6 @@ async def lifespan(app: FastAPI):
     app.state.api_activity = ActivityStore()
     _cameras = build_camera_registry(settings)
     app.state.camera_controls = CameraControls(settings)
-    app.state.capture_modes = CaptureModes(app.state.camera_controls)
     _store = CaptureStore(settings.storage.captures_dir)
     try:
         removed_captures, removed_images = _store.prune_expired()
@@ -85,7 +83,6 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await app.state.capture_modes.close()
         cleanup_task.cancel()
         try:
             await cleanup_task
@@ -105,7 +102,6 @@ app = FastAPI(
 app.add_middleware(ActivityMiddleware)
 app.include_router(activity_router)
 app.include_router(controls_router)
-app.include_router(capture_modes_router)
 app.mount(
     "/dashboard/assets",
     StaticFiles(directory=DASHBOARD_DIR / "assets"),
@@ -329,10 +325,10 @@ async def get_stream_metrics() -> dict[str, Any]:
 
 @app.get("/api/v1/status", tags=["monitoring"])
 async def get_status() -> dict[str, Any]:
-    """Camera availability and live capture mode. Latency is measured client-side."""
+    """Camera availability and read-only source status. Latency is measured client-side."""
     cam_ids = list(_cameras)
     available = await asyncio.gather(*(_cameras[c].is_available() for c in cam_ids))
-    live_modes = await asyncio.gather(*(app.state.capture_modes.current(cam_id)
+    live_modes = await asyncio.gather(*(_cameras[cam_id].read_stream_status()
         if settings.cameras[cam_id].source == "v4l2" else asyncio.sleep(0, result=None)
         for cam_id in cam_ids))
     mode_by_camera = dict(zip(cam_ids, live_modes))

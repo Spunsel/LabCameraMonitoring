@@ -4,7 +4,7 @@ Reviewed against the packaged source on **2026-09-28**.
 
 Camera settings have an icon-only entry beside the theme toggle. It contains two camera
 columns, each with a live preview and four independently collapsible image-control
-sections plus Capture mode, all closed by default, and one compact operator unlock/lock
+sections, all closed by default, and one compact operator unlock/lock
 toolbar above both columns. Click a section heading or focus it and use the browser's
 keyboard activation (typically Enter or Space) to expand or collapse it. Expand/collapse
 SVG icons indicate the state in both themes. Normal control readbacks preserve open
@@ -102,15 +102,6 @@ changes; refresh to read actual values. Failed multi-control requests can partia
 apply: responses identify completed writes and include readback when available. The
 dashboard reports the failure and refreshes state.
 
-## Capture mode
-
-Each camera card also has a collapsed **Capture mode** section with resolution, target
-FPS and an apply button. It uses the same operator access. A one-time server setup
-enables the narrowly scoped restart helper; see [CAPTURE_MODE.md](CAPTURE_MODE.md) for
-installation, persistence and rollback. Capture-mode changes apply to the shared source
-for streams and new snapshots. They are separate from saved image configurations and
-image-control undo.
-
 ## Save, load and undo
 
 Each camera footer has **save config** and **load config** on the left, and **restore
@@ -129,7 +120,7 @@ card.
   history or redo stack. It cannot reconstruct changes for which no valid undo record/token remains.
   Refresh and saving a configuration do not consume undo. Reloading the browser,
   locking controls, or restarting the API clears this session's undo access.
-  A later image-control mutation or a validated capture-mode change invalidates
+  A later image-control mutation invalidates
   older undo tokens; changed writable values detected from another program also
   block undo. Changes that return to the same observed state cannot be detected. Reapplying already-matching values can leave the
   existing undo slot intact. A failed batch reports partial changes and offers
@@ -163,8 +154,7 @@ sudo systemctl restart camera-api.service
 
 Then reload the dashboard for frontend changes. A documentation-only update needs no
 restart. For ordinary image-control updates, no additional Python dependencies or
-capture-service restart are required. Capture-mode installation and writes have their
-own setup/restart behavior described separately. Keep the existing **one Uvicorn
+capture-service restart are required. Keep the existing **one Uvicorn
 worker** deployment: per-camera write locks and one-step undo state are in the API
 process.
 

@@ -28,7 +28,7 @@ clicked. The button sends an HTTP request, not a shell command.
 | Check camera readiness | `GET /readyz` |
 
 The operation selector does not expose every API endpoint. Saved configurations,
-undo and capture-mode APIs exist but are operated from Settings; recent request
+and undo APIs exist but are operated from Settings; recent request
 history is on [API CALLS](API_CALLS.md). Continuous MJPEG playback is on Stream.
 The full endpoint catalog is in [README.md](README.md).
 

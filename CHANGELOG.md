@@ -10,6 +10,15 @@ those historical entries describe their dates only.
 
 ## [Unreleased]
 
+### Removed — 2026-09-28
+
+- Dashboard resolution/target-FPS selectors and mode discovery/write API routes.
+- Privileged restart helper, installer, mode-specific reconnection code and tests.
+- Read-only source resolution/FPS reporting now lives in the camera HTTP adapter;
+  ordinary image controls, saved image configurations and stream metrics remain.
+- Added [REMOVAL_NOTES.md](REMOVAL_NOTES.md) for existing lab installations,
+  including preservation of saved overrides before removing installed files.
+
 ### Documentation — 2026-09-28
 
 - Reviewed all 12 project/ZIP Markdown documents against current routes, frontend
@@ -18,7 +27,7 @@ those historical entries describe their dates only.
   retention timing, missing development config and outdated test references.
 - Clarified ping-based readiness, latest-frame snapshot semantics, source target
   FPS versus collector/browser FPS, and the different latency measurements.
-- Documented capture-mode proxy timeout and setup/policy/override behavior.
+- Documented the then-present capture-mode setup; superseded by the removal above.
 - Separated historical milestones from current implementation and verification.
 - No Python, JavaScript, CSS, YAML, deployment script or dependency changes in
   this documentation update.
@@ -35,8 +44,6 @@ those historical entries describe their dates only.
 - Settings page with shared-key V4L2 image controls, per-camera cards, previews
   outside the cards and collapsible sections.
 - Persistent named image configurations and one-step undo with stale-state checks.
-- Capture-mode resolution/integer-FPS discovery and a root-installed, fixed-purpose
-  helper for one-camera restart, validation, persistence and attempted rollback.
 - Header-only stream collector with five-second median/max/count slots, a recent
   latency graph and observed FPS estimate.
 - Stream, Snapshots, History and Docs pages, responsive layout, dark/light themes,
@@ -69,6 +76,8 @@ those historical entries describe their dates only.
 - One API worker is required for coherent locks, undo and request history.
 
 ### Verification
+
+- Resolution/FPS feature removal: 71 backend tests and three JavaScript suites passed.
 
 - API CALLS implementation: 82 backend tests and all four JavaScript suites passed.
 - Full-app mock capture/activity check passed. Synthetic recording overhead was
